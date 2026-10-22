@@ -14,7 +14,7 @@ var buttons = tgbotapi.NewInlineKeyboardMarkup(
 	),
 
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Как участвовать", "get_instruction"),
+		tgbotapi.NewInlineKeyboardButtonData("Как участвовать", "getInstruction"),
 	),
 
 	tgbotapi.NewInlineKeyboardRow(
@@ -22,7 +22,7 @@ var buttons = tgbotapi.NewInlineKeyboardMarkup(
 	),
 
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Правила акции", "get_rules"),
+		tgbotapi.NewInlineKeyboardButtonData("Правила акции", "getRules"),
 	),
 
 	
