@@ -20,6 +20,7 @@ type User struct {
 	promocode *Promo
 	chances uint8
 	registered bool
+	active bool
 
 }
 
@@ -32,8 +33,14 @@ type Promo struct {
 	usage_place string
 }
 
+type Registration struct{
+	date string
+	time string
+}
+
 var company = "yandex"
 //var statusSub bool = false
+
 
 var promo1 = Promo{"ABCD1234", "yandex", "25.10.2026", "15.10.2026", "yandex.ru"}
 var promo2 = Promo{"QWRT45678", "yandex", "25.10.2026", "15.10.2026", "yandex.ru"}
@@ -41,6 +48,7 @@ var promo3 = Promo{"ZXCV1234", "yandex", "25.10.2026", "15.10.2026", "yandex.ru"
 
 var available_promos = []Promo{promo1, promo2, promo3}
 var users = make(map[int64]*User)
+var participants = make(map[int64]*Registration)
 
 var buttons = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
@@ -115,6 +123,13 @@ func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
 		u.promocode = &promo
 		available_promos = slices.Delete(available_promos, ind, ind+1)
 
+		if !u.active {
+			u.active = true
+			if u.chances < 10 {
+				u.chances++
+			}
+		}
+
 		text := fmt.Sprintf("Твой фестивальный бонус от %s готов 🎁\nПромокод: %v\nИспользуй его до %s на %s.\n\nТеперь можешь принять участие в розыгрыше призов дня.", promo.company, promo.value, promo.expires_at, promo.usage_place)
 		msg := tgbotapi.NewMessage(chatID, text)
 		if _, err := bot.Send(msg); err != nil {
@@ -155,12 +170,33 @@ func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 	u := users[user.ID]
 	if u.registered {
-		text := fmt.Sprintf("Ты в лайнапе ✅\n\nЗаявка на розыгрыш призов от %s зарегистрирована.\n\nВозвращайся завтра — на сцену выйдет новый партнер.", company)
-		msg := tgbotapi.NewMessage(chatID, text)
+		if _, ok := participants[user.ID]; !ok {
+			participants[user.ID] = &Registration{"10.10.2026", "12:00:00"}
+			if !u.active {
+				u.active = true
+				if u.chances < 10{
+					u.chances++	
+				}
+			}
+			
+
+			text := fmt.Sprintf("Ты в лайнапе ✅\n\nЗаявка на розыгрыш призов от %s зарегистрирована.\n\nВозвращайся завтра — на сцену выйдет новый партнер.\n\nВсего шансов: %d", company, u.chances)
+			msg := tgbotapi.NewMessage(chatID, text)
 		
-		if _, err := bot.Send(msg); err != nil {
-		log.Panic(err)
-	}
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+				
+			}
+		} else {
+			text := fmt.Sprintf("Ты уже участвуешь в сегодняшнем розыгрыше ✅\n\nРезультаты сообщим после подведения итогов.")
+			msg := tgbotapi.NewMessage(chatID, text)
+		
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
+		}
+		
+
 
 	} else {
 		text := fmt.Sprintf("Пока не вижу подписку 👀\nПодпишись на аккаунт %s, вернись в бот и попробуй еще раз.", company)
@@ -184,6 +220,7 @@ func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 
 
 func handleTakePart(bot *tgbotapi.BotAPI, chatID int64) {
+
 	text := fmt.Sprintf("Чтобы попасть в розыгрыш призов от %s, подпишись на аккаунт партнера.", company)
 	msg := tgbotapi.NewMessage(chatID, text)
 
@@ -209,6 +246,7 @@ func createUser(newUser *tgbotapi.User){
 		newUser.LastName,
 		nil, 
 		0, 
+		false,
 		false,
 	} 
 }
