@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -64,7 +63,7 @@ var buttons = tgbotapi.NewInlineKeyboardMarkup(
 	),
 
 	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Мои шансы", "get_chances"),
+		tgbotapi.NewInlineKeyboardButtonData("Мои шансы", "getChances"),
 	),
 
 	tgbotapi.NewInlineKeyboardRow(
@@ -96,7 +95,9 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *t
 			handleMakeSub(bot, chatID, user)
 		case "checkSub":
 			handleCheckSub(bot, chatID, user)
-			//handleCheckSub()
+		case "getChances":
+			handleGetChances(bot, chatID, user)
+			
 
 	}
 }
@@ -234,6 +235,17 @@ func handleTakePart(bot *tgbotapi.BotAPI, chatID int64) {
 		)
 
 
+	if _, err := bot.Send(msg); err != nil {
+		log.Panic(err)
+	}
+}
+
+func handleGetChances(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
+	u := users[user.ID]
+
+	text := fmt.Sprintf("Твой фестивальный пропуск\nНакоплено шансов: %d из 10\nЧем больше дней розыгрыша ты посетишь, тем выше вероятность выигратьт главный приз.", u.chances)
+	msg := tgbotapi.NewMessage(chatID, text)
+		
 	if _, err := bot.Send(msg); err != nil {
 		log.Panic(err)
 	}
