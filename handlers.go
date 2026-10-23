@@ -12,7 +12,7 @@ func sendMsg(bot *tgbotapi.BotAPI, chatID int64, text string){
 	msg := tgbotapi.NewMessage(chatID, text)
 	if _, err := bot.Send(msg); err != nil {
 		log.Printf("Ошибка отправки сообщения: %v", err)
-		}
+	}
 }
 
 
@@ -46,7 +46,9 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *t
 		case "getDailyWinners":
 			getDailyWinnersID(company)
 		case "runDailyDraw":
-			dailyDraw(company)
+			dailyDraw(bot, company)
+		case "getPrize":
+			handleGetPrize(bot, chatID, user)
 
 	}
 }
@@ -236,7 +238,7 @@ func getDailyWinnersID(p Partner) []int64 {
 	return nil
 }
 
-func dailyDraw(p Partner){
+func dailyDraw(bot *tgbotapi.BotAPI, p Partner){
 	winnerIDs := getDailyWinnersID(p)
 	fmt.Println(winnerIDs)
 
@@ -248,7 +250,29 @@ func dailyDraw(p Partner){
 	}
 
 	dailyDraws = append(dailyDraws, newDraw)
+	sendMsgToDailyWinners(bot, winnerIDs)
 	fmt.Println(dailyDraws)
+}
+
+func sendMsgToDailyWinners(bot *tgbotapi.BotAPI, dailyWinnerIDs []int64){
+
+	text := fmt.Sprintf("Ты в числе хедлайнеров дня 🔥\n" + 
+
+		"Ты выиграл %s от %s.\n" +
+
+		"Чтобы получить приз, %s.", "айфон 17 про макс", "Yandex", "нажми на кнопку 'Получить приз'")
+
+	for _, id := range dailyWinnerIDs {
+		msg := tgbotapi.NewMessage(id, text)
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Получить приз", "getPrize"),
+			),
+		)
+		if _, err := bot.Send(msg); err != nil {
+			log.Printf("Ошибка отправки сообщения: %v", err)
+		}
+	}
 }
 
 func findParticipantByID(id int64) (int, bool){
@@ -262,4 +286,78 @@ func findParticipantByID(id int64) (int, bool){
 	}
 
 	return -1, false
+}
+
+func handleGetPrize(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
+	getFirstName(bot, chatID, user)
+	/*getLastName(bot, chatID, user.ID)
+	getConsent(bot, chatID, user.ID)*/
+}
+
+func getFirstName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
+
+	u := users[user.ID]
+	if u == nil {
+		return
+	}
+
+	u.winnerCreds = &winnerCreds{}
+	text := "Для получения приза необходимо прислать ваше имя, фамилию и согласие на передачу данных партнеру.\n\nВведите ваше имя: \n"
+	sendMsg(bot, chatID, text)
+}
+
+func inputFirstName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, firstName string){
+	u := users[user.ID]
+	
+	u.winnerCreds.firstName = firstName
+
+	sendMsg(bot, chatID, fmt.Sprintf("Вы ввели имя %s", u.winnerCreds.firstName ))
+
+	sendMsg(bot, chatID, "Введите вашу фамилию:\n")
+
+}
+
+func inputLastName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, lastName string){
+	u := users[user.ID]
+	
+	u.winnerCreds.lastName = lastName
+
+	sendMsg(bot, chatID, fmt.Sprintf("Вы ввели фамилию %s", u.winnerCreds.lastName))
+
+
+	text := "Для дальнейшей обработки необходимо предоставить согласие на передачу данных партнеру.\n\n" +
+	"Для подтверждения нажмите ниже на кнопку: "
+	
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Подтвердить", "consentYes"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Не подтверждать", "consentNo"),
+		),
+	)
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("Ошибка отправки сообщения: %v", err)
+	}
+
+}
+
+
+func inputConsent(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
+	
+
+	fmt.Println("Согласие получено")
+}
+
+func handleInputCreds(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, text string) {
+	u := users[user.ID]
+	if u.winnerCreds.firstName == "" {
+		inputFirstName(bot, chatID, user, text)
+	} else if u.winnerCreds.lastName == "" {
+		inputLastName(bot, chatID, user, text)
+	} else {
+		inputConsent(bot, chatID, user)
+	}
+	
 }

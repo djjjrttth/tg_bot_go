@@ -55,7 +55,9 @@ func main() {
 		if update.Message != nil {
 			
 			newUser := update.Message.From
-			if update.Message.IsCommand() {
+			if update.Message.Text != "" && !update.Message.IsCommand() {
+				handleInputCreds(bot, update.Message.Chat.ID, newUser, update.Message.Text)
+			} else if update.Message.IsCommand() {
 				switch update.Message.Command(){
 				case "start":
 					// TODO: добавить приветственный баннер

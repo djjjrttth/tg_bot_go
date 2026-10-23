@@ -9,6 +9,7 @@ type User struct {
 	chances uint8
 	registered bool
 	active bool
+	winnerCreds *winnerCreds
 
 }
 
@@ -37,4 +38,10 @@ type Draw struct {
 	time string
 	participants []*Participant
 	winners []int64
+}
+
+type winnerCreds struct {
+	firstName string
+	lastName  string
+	consent   *bool
 }
