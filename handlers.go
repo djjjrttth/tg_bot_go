@@ -43,6 +43,10 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *t
 			handleGetInstruction(bot, chatID)
 		case "getRules":
 			handleGetRules(bot, chatID)
+		case "getDailyWinners":
+			getDailyWinnersID(company)
+		case "runDailyDraw":
+			dailyDraw(company)
 
 	}
 }
@@ -51,15 +55,13 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *t
 func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
 
 	//TODO: добавить ограничение на один промокод по дате
-	if len(available_promos) > 0 {
+	u := users[user.ID]
+	if u.promocode != nil {
+		text := fmt.Sprintf("Вы сегодня уже получили промокод\n\nВаш промокод от %s: %v", u.promocode.company, u.promocode.value)
+		sendMsg(bot, chatID, text)
 
-		u := users[user.ID]
-		if u.promocode != nil {
-			text := fmt.Sprintf("Вы сегодня уже получили промокод\n\nВаш промокод от %s: %v", u.promocode.company, u.promocode.value)
-			sendMsg(bot, chatID, text)
-			return
-		}
-		
+	} else {
+		if len(available_promos) > 0 {
 		ind := rand.IntN(len(available_promos))
 		promo := available_promos[ind]
 
@@ -80,20 +82,22 @@ func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
 		sendMsg(bot, chatID, text)
 		
 		
-	} else {
-		text := fmt.Sprintf("Промокоды от %s уже закончились — их разобрали быстрее всех 🔥\nНо ты все еще можешь подписаться на партнера и принять участие в розыгрыше призов дня.", company)
-		msg := tgbotapi.NewMessage(chatID, text)
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Участвовать в розыгрыше", "take_part"),
-			),
-		)
+		} else {
+			text := fmt.Sprintf("Промокоды от %s уже закончились — их разобрали быстрее всех 🔥\nНо ты все еще можешь подписаться на партнера и принять участие в розыгрыше призов дня.", company.name)
+			msg := tgbotapi.NewMessage(chatID, text)
+			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+				tgbotapi.NewInlineKeyboardRow(
+					tgbotapi.NewInlineKeyboardButtonData("Участвовать в розыгрыше", "take_part"),
+				),
+			)
 
-		if _, err := bot.Send(msg); err != nil {
-			log.Panic(err)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
+
 		}
-
 	}
+		
 }
 
 
@@ -105,15 +109,15 @@ func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 	u.registered = true
 	//fmt.Printf("Статус подписки: %v\n", statusSub)
 
-	text := fmt.Sprintf("Вы подписались на %s\n", company)
+	text := fmt.Sprintf("Вы подписались на %s\n", company.name)
 	sendMsg(bot, chatID, text)
 }
 
 func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 	u := users[user.ID]
 	if u.registered {
-		if _, ok := participants[user.ID]; !ok {
-			participants[user.ID] = &Registration{"10.10.2026", "12:00:00"}
+		if _, ok := findParticipantByID(user.ID); !ok {
+			participants = append(participants, &Participant{user.ID, "10.10.2026", "12:00:00"})
 			if !u.active {
 				u.active = true
 				if u.chances < 10{
@@ -122,7 +126,7 @@ func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 			}
 			
 
-			text := fmt.Sprintf("Ты в лайнапе ✅\n\nЗаявка на розыгрыш призов от %s зарегистрирована.\n\nВозвращайся завтра — на сцену выйдет новый партнер.\n\nВсего шансов: %d", company, u.chances)
+			text := fmt.Sprintf("Ты в лайнапе ✅\n\nЗаявка на розыгрыш призов от %s зарегистрирована.\n\nВозвращайся завтра — на сцену выйдет новый партнер.\n\nВсего шансов: %d", company.name, u.chances)
 			sendMsg(bot, chatID, text)
 
 		} else {
@@ -133,7 +137,7 @@ func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 
 
 	} else {
-		text := fmt.Sprintf("Пока не вижу подписку 👀\nПодпишись на аккаунт %s, вернись в бот и попробуй еще раз.", company)
+		text := fmt.Sprintf("Пока не вижу подписку 👀\nПодпишись на аккаунт %s, вернись в бот и попробуй еще раз.", company.name)
 		msg := tgbotapi.NewMessage(chatID, text)
 
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
@@ -155,12 +159,12 @@ func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 
 func handleTakePart(bot *tgbotapi.BotAPI, chatID int64) {
 
-	text := fmt.Sprintf("Чтобы попасть в розыгрыш призов от %s, подпишись на аккаунт партнера.", company)
+	text := fmt.Sprintf("Чтобы попасть в розыгрыш призов от %s, подпишись на аккаунт партнера.", company.name)
 	msg := tgbotapi.NewMessage(chatID, text)
 
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("Подписаться на %s", company), "makeSub"),
+				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("Подписаться на %s", company.name), "makeSub"),
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Проверить подписку", "checkSub"),
@@ -201,4 +205,61 @@ func handleGetRules(bot *tgbotapi.BotAPI, chatID int64) {
 		"• Результаты розыгрыша объявляются организаторами."
 
 	sendMsg(bot, chatID, text)
+}
+
+
+func getDailyWinnersID(p Partner) []int64 {
+
+	fmt.Println(participants)
+	var n uint32 = p.winners_cnt
+	var participants_cnt uint32 = uint32(len(participants))
+	winnerIDs := make([]int64, 0)
+	
+	if participants_cnt >= n {
+		
+
+		win_inds := rand.Perm(int(participants_cnt))
+
+		fmt.Println(win_inds)
+		fmt.Println()
+		for i := range n {
+			winnerIDs = append(winnerIDs, participants[win_inds[i]].tgID)
+			//fmt.Println()
+		}
+		fmt.Println()
+
+		fmt.Println(winnerIDs)
+		return winnerIDs
+
+	}
+
+	return nil
+}
+
+func dailyDraw(p Partner){
+	winnerIDs := getDailyWinnersID(p)
+	fmt.Println(winnerIDs)
+
+	var newDraw = Draw{
+		date : "10.10.2026",
+		time : "12:00:00", 
+		participants : participants,
+		winners : winnerIDs,
+	}
+
+	dailyDraws = append(dailyDraws, newDraw)
+	fmt.Println(dailyDraws)
+}
+
+func findParticipantByID(id int64) (int, bool){
+	var n int = len(participants)
+
+	for i := range n {
+		p := participants[i]
+		if p.tgID == id {
+			return i, true
+		}
+	}
+
+	return -1, false
 }

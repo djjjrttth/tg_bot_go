@@ -12,7 +12,6 @@ type User struct {
 
 }
 
-
 type Promo struct {
 	value string
 	company string
@@ -21,7 +20,21 @@ type Promo struct {
 	usage_place string
 }
 
-type Registration struct{
+type Participant struct{
+	tgID int64
 	date string
 	time string
+}
+
+type Partner struct {
+	name string
+	winners_cnt uint32
+	prizes_cnt uint32
+}
+
+type Draw struct {
+	date string
+	time string
+	participants []*Participant
+	winners []int64
 }

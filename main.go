@@ -10,6 +10,7 @@ import (
 
 
 func createUser(newUser *tgbotapi.User){
+	
 	users[newUser.ID] = &User{
 		tgID: newUser.ID,
 		username: newUser.UserName,

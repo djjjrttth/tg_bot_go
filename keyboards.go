@@ -24,7 +24,12 @@ var buttons = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Правила акции", "getRules"),
 	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("GetDailyWinners", "getDailyWinners"),
+	),
 
-	
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("runDailyDraw", "runDailyDraw"),
+	),
 	
 )
