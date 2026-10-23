@@ -31,5 +31,8 @@ var buttons = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("runDailyDraw", "runDailyDraw"),
 	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("runFinalDraw", "runFinalDraw"),
+	),
 	
 )

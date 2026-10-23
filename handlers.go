@@ -50,6 +50,9 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *t
 		case "getPrize":
 			handleGetPrize(bot, chatID, user)
 
+		case "runFinalDraw":
+			runFinalDraw(bot, company)
+
 	}
 }
 
@@ -360,4 +363,81 @@ func handleInputCreds(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, t
 		inputConsent(bot, chatID, user)
 	}
 	
+}
+
+func chooseMainFinalWinners(p Partner, participantIDs []int64) []int64 {
+	var finalWinners []int64
+	for len(finalWinners) != 5 {
+		ind := rand.IntN(len(participantIDs))
+		pID:= participantIDs[ind]
+		if !slices.Contains(finalWinners, pID) {
+			finalWinners = append(finalWinners, pID)
+		}
+	}
+
+	return finalWinners
+}
+
+func chooseReserveFinalWinners(p Partner, participantIDs, mainFinalWinnerIDs []int64) []int64 {
+	var reserveWinners []int64
+	for len(reserveWinners) != 5 {
+		ind := rand.IntN(len(participantIDs))
+		pID:= participantIDs[ind]
+		if !slices.Contains(mainFinalWinnerIDs, pID) && !slices.Contains(reserveWinners, pID) {
+			reserveWinners = append(reserveWinners, pID)
+		}
+	}
+
+	return reserveWinners
+}
+
+func getFinalWinnersID(p Partner) ([]int64, []int64) {
+	var participantsWithChancesIDs []int64
+
+	if len(users) >= 10 {
+		for _, p := range participants {
+			u := users[p.tgID]
+			for range u.chances {
+				participantsWithChancesIDs = append(participantsWithChancesIDs, p.tgID)
+			}
+
+		}
+
+		finalWinnersID := chooseMainFinalWinners(p, participantsWithChancesIDs)
+		reserveWinnersID := chooseReserveFinalWinners(p, participantsWithChancesIDs, finalWinnersID)
+
+		fmt.Printf("Главные победители: %v\n", finalWinnersID)
+		fmt.Printf("Резервные победители: %v\n\n", reserveWinnersID)
+
+		return finalWinnersID, reserveWinnersID
+
+	}
+
+	log.Printf("Недостаточно участников для проведения финального розыгрыша")
+	return nil, nil
+}
+
+func runFinalDraw(bot *tgbotapi.BotAPI, p Partner){
+	finalWinnerIDs, _ := getFinalWinnersID(p)
+	sendMsgToFinalWinners(bot, finalWinnerIDs)
+
+}
+
+func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64){
+
+	text := fmt.Sprintf("Твой сентябрь выходит на главную сцену 🔥\n" + 
+		"Ты выиграл билет на Канье Уэста!" + 
+		"Чтобы подтвердить получение приза, нажми кнопку ниже и оставь необходимые контактные данные.")
+
+	for _, id := range finalWinnerIDs {
+		msg := tgbotapi.NewMessage(id, text)
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Получить приз", "getPrize"),
+			),
+		)
+		if _, err := bot.Send(msg); err != nil {
+			log.Printf("Ошибка отправки сообщения: %v", err)
+		}
+	}
 }
