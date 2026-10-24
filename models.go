@@ -15,6 +15,9 @@ type User struct {
 	active bool
 	winnerCreds *winnerCreds
 
+	PrizeNotifiedAt time.Time
+	IsPrizeClaimed  bool      
+
 }
 
 type Promo struct {

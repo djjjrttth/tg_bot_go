@@ -38,7 +38,7 @@ func main() {
 	
 	adminID_, _ := strconv.Atoi(adminIDstr)
 	var adminID int64 = int64(adminID_)
-	
+
 	bot, err := tgbotapi.NewBotAPI(api_token)
 	if err != nil {
 		log.Panic(err)
@@ -47,8 +47,9 @@ func main() {
 	bot.Debug = false
 	
 	startDailyDraw(bot, adminID)
+	startPrizeChecker(bot)
 
-	updateConfig := tgbotapi.NewUpdate(0) // структура UpdateConfig
+	updateConfig := tgbotapi.NewUpdate(0) 
 	updateConfig.Timeout = 30
 
 	// создаем канал с обновлениями

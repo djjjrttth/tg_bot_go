@@ -64,6 +64,9 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 
 func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
 
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
+
 	u := users[userID]
 	
 	if u.promocode != nil {
@@ -107,6 +110,10 @@ func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
 }
 
 func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, userID int64){
+
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
+
 	u := users[userID]
 
 	u.registered = true
@@ -116,6 +123,10 @@ func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, userID int64){
 }
 
 func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, userID int64){
+
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
+
 	u := users[userID]
 	if u == nil {
 		log.Printf("Ошибка: пользователя не существует")
@@ -210,6 +221,10 @@ func getFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64){
 }
 
 func inputFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64, firstName string){
+
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
+
 	u := users[userID]
 	
 	u.winnerCreds.firstName = firstName
@@ -221,6 +236,10 @@ func inputFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64, firstName 
 }
 
 func inputLastName(bot *tgbotapi.BotAPI, chatID int64, userID int64, lastName string){
+
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
+
 	u := users[userID]
 	
 	u.winnerCreds.lastName = lastName
@@ -235,9 +254,20 @@ func inputLastName(bot *tgbotapi.BotAPI, chatID int64, userID int64, lastName st
 
 }
 
-
 func inputConsent(bot *tgbotapi.BotAPI, chatID int64, userID int64){
-	fmt.Println("Согласие получено")
+
+	stateMutex.Lock()
+	defer stateMutex.Unlock()
+
+	u := users[userID]
+	if u != nil {
+
+		u.IsPrizeClaimed = true 
+		fmt.Printf("Пользователь %d успешно забрал приз\n", userID)
+	}
+	
+	text := "Ваши данные приняты. Партнер свяжется с вами для передачи приза. 🎁"
+	sendMsg(bot, chatID, text)
 }
 
 func handleInputCreds(bot *tgbotapi.BotAPI, chatID int64, userID int64, text string) {

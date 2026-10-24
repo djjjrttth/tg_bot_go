@@ -97,7 +97,15 @@ func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64){
 		"Чтобы подтвердить получение приза, нажми кнопку ниже и оставь необходимые контактные данные.")
 
 	for _, id := range finalWinnerIDs {
+
+		u := users[id]
+		if u != nil {
+			u.PrizeNotifiedAt = time.Now()
+			u.IsPrizeClaimed = false
+		}
+
 		sendMsgKeyboard(bot, id, text, getPrizeButton)
+
 	}
 }
 

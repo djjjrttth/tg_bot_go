@@ -62,6 +62,14 @@ func sendMsgToDailyWinners(bot *tgbotapi.BotAPI, dailyWinnerIDs []int64){
 	)
 
 	for _, id := range dailyWinnerIDs {
+
+		u := users[id]
+		if u != nil {
+			u.PrizeNotifiedAt = time.Now() // ФИКСИРУЕМ ВРЕМЯ
+			u.IsPrizeClaimed = false       // СБРАСЫВАЕМ СТАТУС
+		}
+
+
 		sendMsgKeyboard(bot, id, text, getPrizeButton)
 	}
 }
@@ -126,7 +134,7 @@ func startDailyDraw(bot *tgbotapi.BotAPI, adminID int64) {
 		for {
 			now := time.Now()
 			//next := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
-			next := now.Add(1 * time.Minute)
+			next := now.Add(5 * time.Minute)
 			if now.After(next){
 				next = next.Add(24 * time.Hour)
 			}
