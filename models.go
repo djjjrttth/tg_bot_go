@@ -1,5 +1,9 @@
 package main
 
+import (
+	"time"
+)
+
 type User struct {
 
 	tgID int64
@@ -16,15 +20,14 @@ type User struct {
 type Promo struct {
 	value string
 	company string
-	expires_at string
-	issued_at string
-	usage_place string
+	expiresAt time.Time
+	issuedAt time.Time
+	usagePlace string
 }
 
 type Participant struct{
 	tgID int64
-	date string
-	time string
+	timestamp time.Time
 }
 
 type Partner struct {
@@ -34,9 +37,10 @@ type Partner struct {
 }
 
 type Draw struct {
-	date string
-	time string
+	timestamp time.Time
 	participants []*Participant
+	//participants []Participant
+
 	winners []int64
 }
 

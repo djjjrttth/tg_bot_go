@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 	"slices"
 	"math/rand/v2"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -11,7 +12,16 @@ import (
 func sendMsg(bot *tgbotapi.BotAPI, chatID int64, text string){
 	msg := tgbotapi.NewMessage(chatID, text)
 	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Ошибка отправки сообщения: %v", err)
+		log.Printf("Ошибка отправки сообщения: %w", err)
+	}
+}
+
+func sendMsgKeyboard(bot *tgbotapi.BotAPI, chatID int64, text string, button ...tgbotapi.InlineKeyboardButton) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ReplyMarkup = convertToMarkup(button)
+
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("Ошибка отправки сообщения: %w", err)
 	}
 }
 
@@ -28,10 +38,10 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *t
 	chatID := query.Message.Chat.ID
 
 	switch query.Data {
-		case "get_promo":
+		case "getPromo":
 			handleGetPromo(bot, chatID, user)
 
-		case "take_part":
+		case "takePart":
 			handleTakePart(bot, chatID)
 		case "makeSub":
 			handleMakeSub(bot, chatID, user)
@@ -82,14 +92,15 @@ func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
 
 		text := fmt.Sprintf("Твой фестивальный бонус от %s готов 🎁\n" + 
 			"Промокод: %v\nИспользуй его до %s на %s.\n\n" +
-			"Теперь можешь принять участие в розыгрыше призов дня.", promo.company, promo.value, promo.expires_at, promo.usage_place)
+			"Теперь можешь принять участие в розыгрыше призов дня.", promo.company, promo.value, promo.expiresAt, promo.usagePlace)
 		
-		sendMsg(bot, chatID, text)
+		//sendMsg(bot, chatID, text)
+		sendMsgKeyboard(bot, chatID, text, takePartButton)
 		
 		
 		} else {
 			text := fmt.Sprintf("Промокоды от %s уже закончились — их разобрали быстрее всех 🔥\nНо ты все еще можешь подписаться на партнера и принять участие в розыгрыше призов дня.", company.name)
-			msg := tgbotapi.NewMessage(chatID, text)
+			/*msg := tgbotapi.NewMessage(chatID, text)
 			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 				tgbotapi.NewInlineKeyboardRow(
 					tgbotapi.NewInlineKeyboardButtonData("Участвовать в розыгрыше", "take_part"),
@@ -98,7 +109,8 @@ func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
 
 			if _, err := bot.Send(msg); err != nil {
 				log.Panic(err)
-			}
+			}*/
+			sendMsgKeyboard(bot, chatID, text, takePartButton)
 
 		}
 	}
@@ -122,7 +134,11 @@ func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 	u := users[user.ID]
 	if u.registered {
 		if _, ok := findParticipantByID(user.ID); !ok {
-			participants = append(participants, &Participant{user.ID, "10.10.2026", "12:00:00"})
+			participants = append(participants, &Participant{
+				tgID: user.ID, 
+				timestamp : time.Now(),
+			})
+			
 			if !u.active {
 				u.active = true
 				if u.chances < 10{
@@ -143,21 +159,20 @@ func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 
 	} else {
 		text := fmt.Sprintf("Пока не вижу подписку 👀\nПодпишись на аккаунт %s, вернись в бот и попробуй еще раз.", company.name)
-		msg := tgbotapi.NewMessage(chatID, text)
+		
+		sendMsgKeyboard(bot, chatID, text, makeSubButton, checkSubButton)
+		/*msg := tgbotapi.NewMessage(chatID, text)
 
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("Подписаться"), "makeSub"),
-			),
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Проверить еще раз", "checkSub"),
-			),
+			convertToRow(makeSubButton),
+
+			convertToRow(checkSubButton),
 		)
 
 
 	if _, err := bot.Send(msg); err != nil {
 		log.Panic(err)
-	}
+	}*/
 	}
 }
 
@@ -165,7 +180,9 @@ func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 func handleTakePart(bot *tgbotapi.BotAPI, chatID int64) {
 
 	text := fmt.Sprintf("Чтобы попасть в розыгрыш призов от %s, подпишись на аккаунт партнера.", company.name)
-	msg := tgbotapi.NewMessage(chatID, text)
+
+	sendMsgKeyboard(bot, chatID, text, makeSubButton, checkSubButton)
+	/*msg := tgbotapi.NewMessage(chatID, text)
 
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
@@ -179,7 +196,7 @@ func handleTakePart(bot *tgbotapi.BotAPI, chatID int64) {
 
 	if _, err := bot.Send(msg); err != nil {
 		log.Panic(err)
-	}
+	}*/
 }
 
 func handleGetChances(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
@@ -246,8 +263,7 @@ func dailyDraw(bot *tgbotapi.BotAPI, p Partner){
 	fmt.Println(winnerIDs)
 
 	var newDraw = Draw{
-		date : "10.10.2026",
-		time : "12:00:00", 
+		timestamp: time.Now(),
 		participants : participants,
 		winners : winnerIDs,
 	}
@@ -266,7 +282,8 @@ func sendMsgToDailyWinners(bot *tgbotapi.BotAPI, dailyWinnerIDs []int64){
 		"Чтобы получить приз, %s.", "айфон 17 про макс", "Yandex", "нажми на кнопку 'Получить приз'")
 
 	for _, id := range dailyWinnerIDs {
-		msg := tgbotapi.NewMessage(id, text)
+		sendMsgKeyboard(bot, id, text, getPrizeButton)
+		/*msg := tgbotapi.NewMessage(id, text)
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Получить приз", "getPrize"),
@@ -274,7 +291,7 @@ func sendMsgToDailyWinners(bot *tgbotapi.BotAPI, dailyWinnerIDs []int64){
 		)
 		if _, err := bot.Send(msg); err != nil {
 			log.Printf("Ошибка отправки сообщения: %v", err)
-		}
+		}*/
 	}
 }
 
@@ -331,7 +348,9 @@ func inputLastName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, last
 	text := "Для дальнейшей обработки необходимо предоставить согласие на передачу данных партнеру.\n\n" +
 	"Для подтверждения нажмите ниже на кнопку: "
 	
-	msg := tgbotapi.NewMessage(chatID, text)
+	sendMsgKeyboard(bot, chatID, text, consentYesButton, consentNoButton)
+
+	/*msg := tgbotapi.NewMessage(chatID, text)
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Подтвердить", "consentYes"),
@@ -342,7 +361,7 @@ func inputLastName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, last
 	)
 	if _, err := bot.Send(msg); err != nil {
 		log.Printf("Ошибка отправки сообщения: %v", err)
-	}
+	}*/
 
 }
 
@@ -430,7 +449,8 @@ func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64){
 		"Чтобы подтвердить получение приза, нажми кнопку ниже и оставь необходимые контактные данные.")
 
 	for _, id := range finalWinnerIDs {
-		msg := tgbotapi.NewMessage(id, text)
+		sendMsgKeyboard(bot, id, text, getPrizeButton)
+		/*msg := tgbotapi.NewMessage(id, text)
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Получить приз", "getPrize"),
@@ -438,6 +458,36 @@ func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64){
 		)
 		if _, err := bot.Send(msg); err != nil {
 			log.Printf("Ошибка отправки сообщения: %v", err)
-		}
+		}*/
 	}
+}
+
+
+func getStatistics(){
+
+}
+
+func getTotalStarts() {
+
+}
+
+func getNewUsersDaily() {
+
+}
+
+func getPromoRequests() {
+
+}
+
+func getIssuedPromoCount(){
+
+}
+
+
+func getLeftPromoAmount(){
+
+}
+
+func getParticipantsAmount(){
+
 }

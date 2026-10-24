@@ -65,7 +65,9 @@ func main() {
 					
 					createUser(newUser)
 					
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Добро пожаловать в Бот розыгрышей!")
+					// TODO: вызывать функцию
+					text := "Добро пожаловать в Бот розыгрышей!"
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
 					msg.ReplyMarkup = buttons
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)

@@ -1,5 +1,8 @@
 package main
 
+import (
+	"time"
+)
 //var company = "yandex"
 //var statusSub bool = false
 
@@ -9,12 +12,86 @@ var company = Partner {
 	prizes_cnt: 3,
 }
 
-var promo1 = Promo{"ABCD1234", company.name, "25.10.2026", "15.10.2026", "yandex.ru"}
-var promo2 = Promo{"QWRT45678", company.name, "25.10.2026", "15.10.2026", "yandex.ru"}
-var promo3 = Promo{"ZXCV1234", company.name, "25.10.2026", "15.10.2026", "yandex.ru"}
+var promo1 = Promo{
+	value: "ABCD1234", 
+	company: company.name, 
+	expiresAt: time.Now().Add(24 * time.Hour),
+	issuedAt: time.Now(), 
+	usagePlace: "yandex.ru",
+}
 
-var part1 = Participant{10, "10.10.2026", "10:00:00"}
-var part2 = Participant{11, "11.11.2026", "11:00:00"}
+var promo2 = Promo{
+	value: "QWRT45678", 
+	company: company.name, 
+	expiresAt: time.Now().Add(24 * time.Hour),
+	issuedAt: time.Now(), 
+	usagePlace: "yandex.ru",
+}
+
+var promo3 = Promo{
+	value: "ZXCV1234", 
+	company: company.name, 
+	expiresAt: time.Now().Add(24 * time.Hour),
+	issuedAt: time.Now(), 
+	usagePlace: "yandex.ru",
+}
+
+//var promo2 = Promo{"QWRT45678", company.name, "25.10.2026", "15.10.2026", "yandex.ru"}
+//var promo3 = Promo{"ZXCV1234", company.name, "25.10.2026", "15.10.2026", "yandex.ru"}
+
+var part1 = Participant{
+	tgID: 10, 
+	timestamp : time.Now(),
+}
+
+var part2 = Participant{
+	tgID: 11, 
+	timestamp : time.Now(),
+}
+
+var part3 = Participant{
+	tgID: 12, 
+	timestamp : time.Now(),
+}
+
+var part4 = Participant{
+	tgID: 13, 
+	timestamp : time.Now(),
+}
+
+var part5 = Participant{
+	tgID: 14, 
+	timestamp : time.Now(),
+}
+
+var part6 = Participant{
+	tgID: 15, 
+	timestamp : time.Now(),
+}
+
+var part7 = Participant{
+	tgID: 16, 
+	timestamp : time.Now(),
+}
+
+var part8 = Participant{
+	tgID: 17, 
+	timestamp : time.Now(),
+}
+
+var part9 = Participant{
+	tgID: 18, 
+	timestamp : time.Now(),
+}
+
+var part10 = Participant{
+	tgID: 19, 
+	timestamp : time.Now(),
+}
+
+
+
+/*var part2 = Participant{11, "11.11.2026", "11:00:00"}
 var part3 = Participant{12, "12.12.2026", "12:00:00"}
 var part4 = Participant{13, "01.01.2026", "13:00:00"}
 var part5 = Participant{14, "02.02.2026", "14:00:00"}
@@ -23,7 +100,7 @@ var part7 = Participant{16, "02.02.2026", "14:00:00"}
 var part8 = Participant{17, "02.02.2026", "14:00:00"}
 var part9 = Participant{18, "02.02.2026", "14:00:00"}
 var part10 = Participant{19, "02.02.2026", "14:00:00"}
-
+*/
 
 
 
@@ -70,5 +147,7 @@ var participants = []*Participant{&part1,
 
 
 }
+
+
 
 var dailyDraws = []Draw{}
