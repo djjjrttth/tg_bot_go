@@ -12,7 +12,7 @@ import (
 func sendMsg(bot *tgbotapi.BotAPI, chatID int64, text string){
 	msg := tgbotapi.NewMessage(chatID, text)
 	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Ошибка отправки сообщения: %w", err)
+		log.Printf("Ошибка отправки сообщения: %v", err)
 	}
 }
 
@@ -21,7 +21,7 @@ func sendMsgKeyboard(bot *tgbotapi.BotAPI, chatID int64, text string, button ...
 	msg.ReplyMarkup = convertToMarkup(button)
 
 	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Ошибка отправки сообщения: %w", err)
+		log.Printf("Ошибка отправки сообщения: %v", err)
 	}
 }
 
@@ -71,12 +71,20 @@ func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
 
 	//TODO: добавить ограничение на один промокод по дате
 	u := users[user.ID]
+	
 	if u.promocode != nil {
-		text := fmt.Sprintf("Вы сегодня уже получили промокод\n\nВаш промокод от %s: %v", u.promocode.company, u.promocode.value)
-		sendMsg(bot, chatID, text)
+		todayDate := time.Now().Format("2006-01-02")
+		issuedAtDate := u.promocode.issuedAt.Format("2006-01-02")
+		if todayDate == issuedAtDate{
+			text := fmt.Sprintf("Вы сегодня уже получили промокод\n\nВаш промокод от %s: %v", u.promocode.company, u.promocode.value)
+			sendMsg(bot, chatID, text)
+			return
+		}
+		
+		u.promocode = nil
 
-	} else {
-		if len(available_promos) > 0 {
+	} 
+	if len(available_promos) > 0 {
 		ind := rand.IntN(len(available_promos))
 		promo := available_promos[ind]
 
@@ -115,7 +123,7 @@ func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
 		}
 	}
 		
-}
+
 
 
 func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
@@ -413,7 +421,8 @@ func chooseReserveFinalWinners(p Partner, participantIDs, mainFinalWinnerIDs []i
 func getFinalWinnersID(p Partner) ([]int64, []int64) {
 	var participantsWithChancesIDs []int64
 
-	if len(users) >= 10 {
+	//TODO: сделать проверку что уникальных участников не менее 10
+	if len(participants) >= 10 {
 		for _, p := range participants {
 			u := users[p.tgID]
 			for range u.chances {
@@ -437,8 +446,12 @@ func getFinalWinnersID(p Partner) ([]int64, []int64) {
 }
 
 func runFinalDraw(bot *tgbotapi.BotAPI, p Partner){
-	finalWinnerIDs, _ := getFinalWinnersID(p)
-	sendMsgToFinalWinners(bot, finalWinnerIDs)
+	finalWinnerIDs, reserveWinners := getFinalWinnersID(p)
+
+	if finalWinnerIDs != nil && reserveWinners != nil {
+		sendMsgToFinalWinners(bot, finalWinnerIDs)
+	}
+	
 
 }
 
