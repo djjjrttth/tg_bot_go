@@ -30,19 +30,19 @@ type Participant struct{
 	timestamp time.Time
 }
 
-type Partner struct {
+type Prize struct {
 	name string
-	winners_cnt uint32
-	prizes_cnt uint32
+	instruction string
 }
 
-/*type Draw struct {
-	timestamp time.Time
-	participants []*Participant
-	//participants []Participant
 
-	winners []int64
-}*/
+type Partner struct {
+	name string
+	winnersCnt uint32
+	prizeCnt uint32
+	prize Prize
+}
+
 
 type Draw struct {
 	timestamp time.Time

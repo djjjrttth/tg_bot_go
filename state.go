@@ -6,10 +6,16 @@ import (
 //var company = "yandex"
 //var statusSub bool = false
 
+var prize = Prize {
+	name: "айфон 17 про макс",
+	instruction: "нажмите на кнопку ниже",
+}
+
 var company = Partner {
 	name: "Yandex",
-	winners_cnt: 3,
-	prizes_cnt: 3,
+	winnersCnt: 3,
+	prizeCnt: 3,
+	prize: prize,
 }
 
 var promo1 = Promo{

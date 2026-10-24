@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 	"log"
-	//"time"
+	"strconv"
 	"github.com/joho/godotenv"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -33,7 +33,12 @@ func main() {
 
 
 	api_token, _ := os.LookupEnv("API_TOKEN")
+	adminIDstr, _ := os.LookupEnv("ADMIN_ID")
 
+	
+	adminID_, _ := strconv.Atoi(adminIDstr)
+	var adminID int64 = int64(adminID_)
+	
 	bot, err := tgbotapi.NewBotAPI(api_token)
 	if err != nil {
 		log.Panic(err)
@@ -41,6 +46,8 @@ func main() {
 
 	bot.Debug = false
 	
+	startDailyDraw(bot, adminID)
+
 	updateConfig := tgbotapi.NewUpdate(0) // структура UpdateConfig
 	updateConfig.Timeout = 30
 
@@ -56,7 +63,7 @@ func main() {
 			
 			newUser := update.Message.From
 			if update.Message.Text != "" && !update.Message.IsCommand() {
-				handleInputCreds(bot, update.Message.Chat.ID, newUser, update.Message.Text)
+				handleInputCreds(bot, update.Message.Chat.ID, newUser.ID, update.Message.Text)
 			} else if update.Message.IsCommand() {
 				switch update.Message.Command(){
 				case "start":
@@ -76,8 +83,8 @@ func main() {
 				}
 			} 
 		} else if update.CallbackQuery != nil {
-			user := update.CallbackQuery.From
-			handleCallback(bot, update.CallbackQuery, user)
+			//userID := update.CallbackQuery.From.ID
+			handleCallback(bot, update.CallbackQuery)
 			continue
 
 			

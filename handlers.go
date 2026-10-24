@@ -26,9 +26,8 @@ func sendMsgKeyboard(bot *tgbotapi.BotAPI, chatID int64, text string, button ...
 }
 
 
-func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *tgbotapi.User) {
+func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 
-	//fmt.Println(newUser)
 	callback := tgbotapi.NewCallback(query.ID, "")
 
 	if _, err := bot.Request(callback); err != nil {
@@ -36,19 +35,20 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *t
 	}
 	
 	chatID := query.Message.Chat.ID
+	userID := query.From.ID
 
 	switch query.Data {
 		case "getPromo":
-			handleGetPromo(bot, chatID, user)
+			handleGetPromo(bot, chatID, userID)
 
 		case "takePart":
 			handleTakePart(bot, chatID)
 		case "makeSub":
-			handleMakeSub(bot, chatID, user)
+			handleMakeSub(bot, chatID, userID)
 		case "checkSub":
-			handleCheckSub(bot, chatID, user)
+			handleCheckSub(bot, chatID, userID)
 		case "getChances":
-			handleGetChances(bot, chatID, user)
+			handleGetChances(bot, chatID, userID)
 		case "getInstruction":
 			handleGetInstruction(bot, chatID)
 		case "getRules":
@@ -58,31 +58,32 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *t
 		case "runDailyDraw":
 			dailyDraw(bot, company)
 		case "getPrize":
-			handleGetPrize(bot, chatID, user)
+			handleGetPrize(bot, chatID, userID)
 
 		case "runFinalDraw":
 			runFinalDraw(bot, company)
 
 		case "previewDailyDraw":
-			previewDailyDraw(bot, user.ID, company)
+			previewDailyDraw(bot, userID, company)
 		case "confirmDailyDraw":
-			confirmAndSendDailyDraw(bot, user.ID, company)
+			confirmAndSendDailyDraw(bot, userID, company)
 		case "previewFinalDraw":
-			previewFinalDraw(bot, user.ID, company)
+			previewFinalDraw(bot, userID, company)
 			// TODO: Добавить проверку user.ID == AdminID
 			
 		case "confirmFinalDraw":
-			confirmAndSendFinalDraw(bot, user.ID)
+			confirmAndSendFinalDraw(bot, userID)
 	
 
 	}
 }
 
 
-func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
+func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
 
 
-	u := users[user.ID]
+	u := users[userID]
+	
 	
 	if u.promocode != nil {
 		todayDate := time.Now().Format("2006-01-02")
@@ -133,14 +134,14 @@ func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
 			sendMsgKeyboard(bot, chatID, text, takePartButton)
 
 		}
-	}
+}
 		
 
 
 
-func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
+func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, userID int64){
 	//fmt.Println(users[user.ID])
-	u := users[user.ID]
+	u := users[userID]
 	//fmt.Println(u.registered)
 
 	u.registered = true
@@ -150,12 +151,17 @@ func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 	sendMsg(bot, chatID, text)
 }
 
-func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
-	u := users[user.ID]
+func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, userID int64){
+	u := users[userID]
+	if u == nil {
+		log.Printf("Ошибка: пользователя не существует")
+		return
+	}
+
 	if u.registered {
-		if _, ok := findParticipantByID(user.ID); !ok {
+		if _, ok := findParticipantByID(userID); !ok {
 			participants = append(participants, &Participant{
-				tgID: user.ID, 
+				tgID: userID, 
 				timestamp : time.Now(),
 			})
 			
@@ -219,8 +225,8 @@ func handleTakePart(bot *tgbotapi.BotAPI, chatID int64) {
 	}*/
 }
 
-func handleGetChances(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
-	u := users[user.ID]
+func handleGetChances(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
+	u := users[userID]
 
 	text := fmt.Sprintf("Твой фестивальный пропуск\nНакоплено шансов: %d из 10\nЧем больше дней розыгрыша ты посетишь, тем выше вероятность выигратьт главный приз.", u.chances)
 	sendMsg(bot, chatID, text)
@@ -253,7 +259,7 @@ func handleGetRules(bot *tgbotapi.BotAPI, chatID int64) {
 func getDailyWinnersID(p Partner) []int64 {
 
 	fmt.Println(participants)
-	var n uint32 = p.winners_cnt
+	var n uint32 = p.winnersCnt
 	var participants_cnt uint32 = uint32(len(participants))
 	winnerIDs := make([]int64, 0)
 	
@@ -296,10 +302,12 @@ func dailyDraw(bot *tgbotapi.BotAPI, p Partner){
 func sendMsgToDailyWinners(bot *tgbotapi.BotAPI, dailyWinnerIDs []int64){
 
 	text := fmt.Sprintf("Ты в числе хедлайнеров дня 🔥\n" + 
-
 		"Ты выиграл %s от %s.\n" +
-
-		"Чтобы получить приз, %s.", "айфон 17 про макс", "Yandex", "нажми на кнопку 'Получить приз'")
+		"Чтобы получить приз, %s.",
+		company.prize.name, 
+		company.name, 
+		company.prize.instruction,
+	)
 
 	for _, id := range dailyWinnerIDs {
 		sendMsgKeyboard(bot, id, text, getPrizeButton)
@@ -328,15 +336,15 @@ func findParticipantByID(id int64) (int, bool){
 	return -1, false
 }
 
-func handleGetPrize(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
-	getFirstName(bot, chatID, user)
+func handleGetPrize(bot *tgbotapi.BotAPI, chatID int64, userID int64){
+	getFirstName(bot, chatID, userID)
 	/*getLastName(bot, chatID, user.ID)
 	getConsent(bot, chatID, user.ID)*/
 }
 
-func getFirstName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
+func getFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64){
 
-	u := users[user.ID]
+	u := users[userID]
 	if u == nil {
 		return
 	}
@@ -346,25 +354,25 @@ func getFirstName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
 	sendMsg(bot, chatID, text)
 }
 
-func inputFirstName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, firstName string){
-	u := users[user.ID]
+func inputFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64, firstName string){
+	u := users[userID]
 	
 	u.winnerCreds.firstName = firstName
 
 	sendMsg(bot, chatID, fmt.Sprintf("Вы ввели имя %s", u.winnerCreds.firstName ))
-
+	time.Sleep(1 * time.Second)
 	sendMsg(bot, chatID, "Введите вашу фамилию:\n")
 
 }
 
-func inputLastName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, lastName string){
-	u := users[user.ID]
+func inputLastName(bot *tgbotapi.BotAPI, chatID int64, userID int64, lastName string){
+	u := users[userID]
 	
 	u.winnerCreds.lastName = lastName
 
 	sendMsg(bot, chatID, fmt.Sprintf("Вы ввели фамилию %s", u.winnerCreds.lastName))
 
-
+	time.Sleep(1 * time.Second)
 	text := "Для дальнейшей обработки необходимо предоставить согласие на передачу данных партнеру.\n\n" +
 	"Для подтверждения нажмите ниже на кнопку: "
 	
@@ -386,20 +394,23 @@ func inputLastName(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, last
 }
 
 
-func inputConsent(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User){
+func inputConsent(bot *tgbotapi.BotAPI, chatID int64, userID int64){
 	
 
 	fmt.Println("Согласие получено")
 }
 
-func handleInputCreds(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, text string) {
-	u := users[user.ID]
+func handleInputCreds(bot *tgbotapi.BotAPI, chatID int64, userID int64, text string) {
+	u := users[userID]
+	if u == nil || u.winnerCreds == nil {
+		return
+	}
 	if u.winnerCreds.firstName == "" {
-		inputFirstName(bot, chatID, user, text)
+		inputFirstName(bot, chatID, userID, text)
 	} else if u.winnerCreds.lastName == "" {
-		inputLastName(bot, chatID, user, text)
+		inputLastName(bot, chatID, userID, text)
 	} else {
-		inputConsent(bot, chatID, user)
+		inputConsent(bot, chatID, userID)
 	}
 	
 }
@@ -555,7 +566,7 @@ func previewDailyDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner) {
 	text := fmt.Sprintf("🎯 *Предварительные результаты розыгрыша от %s*\n\n"+
 		"Победители (%d шт.):\n%s\n\n"+
 		"Нажмите кнопку ниже, чтобы подтвердить и отправить уведомления.", 
-		p.name, p.winners_cnt, winnersText)
+		p.name, p.winnersCnt, winnersText)
 
 	sendMsgKeyboard(bot, adminID, text, confirmDailyDrawButton)
 }
@@ -686,3 +697,26 @@ func getLeftPromoAmount(){
 func getParticipantsAmount(){
 
 }
+
+
+
+func startDailyDraw(bot *tgbotapi.BotAPI, adminID int64) {
+	go func() {
+
+		for {
+			now := time.Now()
+			//next := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
+			next := now.Add(1 * time.Minute)
+			if now.After(next){
+				next = next.Add(24 * time.Hour)
+			}
+
+			pauseDuration := time.Until(next)
+			time.Sleep(pauseDuration)
+
+			previewDailyDraw(bot, adminID, company)
+		}
+		
+	}()
+}
+
