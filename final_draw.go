@@ -9,61 +9,46 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+const (
+	WinnersCnt = 10
+	finalWinnersCnt = 5
+)
 
-func chooseMainFinalWinners(p Partner, participantIDs []int64) []int64 {
-	var finalWinners []int64
-	for len(finalWinners) < 5 {
-		ind := rand.IntN(len(participantIDs))
-		pID:= participantIDs[ind]
-		if !slices.Contains(finalWinners, pID) {
-			finalWinners = append(finalWinners, pID)
-		}
 
-		fmt.Println(finalWinners)
+func chooseWinners(p Partner, uniqueParticipantsCnt int32, participantIDs []int64) []int64 {
+	if uniqueParticipantsCnt < WinnersCnt {
+		log.Printf("Недостаточно участников для проведения главного розыгрыша")
+		return nil
 	}
 
-	return finalWinners
-}
+	temp := make([]int64, len(participantIDs))
+	copy(temp, participantIDs)
 
+	winners := make([]int64, 0, WinnersCnt)
 
-
-func chooseReserveFinalWinners(p Partner, participantIDs, mainFinalWinnerIDs []int64) []int64 {
-	var reserveWinners []int64
 	
-	for len(reserveWinners) < 5 {
+	for len(winners) < WinnersCnt {
+		ind := rand.IntN(len(temp))
+		winnerID := temp[ind]
 
-		ind := rand.IntN(len(participantIDs))
-		pID := participantIDs[ind]
+		winners = append(winners, winnerID)
 
+		temp = slices.DeleteFunc(temp, func(id int64) bool {
+			return id == winnerID
+		})
 
-		if !slices.Contains(mainFinalWinnerIDs, pID) && !slices.Contains(reserveWinners, pID) {
-
-			reserveWinners = append(reserveWinners, pID)
-			
-
-			participantIDs = slices.DeleteFunc(participantIDs, func(pid int64) bool {
-				return pid == pID
-			})
-		} else {
-
-			participantIDs = slices.DeleteFunc(participantIDs, func(pid int64) bool {
-				return pid == pID
-			})
-		}
-
-		fmt.Println(reserveWinners)
 	}
 
-	return reserveWinners
+	return winners
+
 }
 
 
-
-func getFinalWinnersID(p Partner) ([]int64, []int64) {
+func getWinnersID(p Partner) ([]int64, []int64) {
 	var participantsWithChancesIDs []int64
 
-	//TODO: сделать проверку что уникальных участников не менее 10
-	if len(participants) >= 10 {
+	
+	if len(participants) >= WinnersCnt {
 		for _, p := range participants {
 			u := users[p.tgID]
 			for range u.chances {
@@ -74,13 +59,20 @@ func getFinalWinnersID(p Partner) ([]int64, []int64) {
 
 		fmt.Println(participantsWithChancesIDs)
 
-		finalWinnersID := chooseMainFinalWinners(p, participantsWithChancesIDs)
-		reserveWinnersID := chooseReserveFinalWinners(p, participantsWithChancesIDs, finalWinnersID)
+		var finalWinners []int64
+		var reserveWinners []int64
 
-		fmt.Printf("Главные победители: %v\n", finalWinnersID)
-		fmt.Printf("Резервные победители: %v\n\n", reserveWinnersID)
+		uniqueParticipantsCnt := int32(len(participants))
+		winners := chooseWinners(p, uniqueParticipantsCnt, participantsWithChancesIDs)
 
-		return finalWinnersID, reserveWinnersID
+		finalWinners = winners[:finalWinnersCnt]
+		reserveWinners = winners[finalWinnersCnt:]
+		
+
+		fmt.Printf("Главные победители: %v\n", finalWinners)
+		fmt.Printf("Резервные победители: %v\n\n", reserveWinners)
+
+		return finalWinners, reserveWinners
 
 	}
 
@@ -89,9 +81,9 @@ func getFinalWinnersID(p Partner) ([]int64, []int64) {
 }
 
 func runFinalDraw(bot *tgbotapi.BotAPI, p Partner){
-	finalWinnerIDs, reserveWinners := getFinalWinnersID(p)
+	finalWinnerIDs, _ := getWinnersID(p)
 
-	if finalWinnerIDs != nil && reserveWinners != nil {
+	if finalWinnerIDs != nil {
 		sendMsgToFinalWinners(bot, finalWinnerIDs)
 	}
 	
@@ -106,15 +98,6 @@ func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64){
 
 	for _, id := range finalWinnerIDs {
 		sendMsgKeyboard(bot, id, text, getPrizeButton)
-		/*msg := tgbotapi.NewMessage(id, text)
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Получить приз", "getPrize"),
-			),
-		)
-		if _, err := bot.Send(msg); err != nil {
-			log.Printf("Ошибка отправки сообщения: %v", err)
-		}*/
 	}
 }
 
@@ -122,12 +105,17 @@ func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64){
 func previewFinalDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner) {
 
 	//fmt.Println("Подтвержаем финальных победителей")
-	mainWinners, reserveWinners := getFinalWinnersID(p)
+	mainWinners, reserveWinners := getWinnersID(p)
 
 	fmt.Println(mainWinners)
 	
 	if mainWinners == nil {
-		log.Printf("Недостаточно участников для проведения розыгрыша")
+		log.Printf("Недостаточно главных участников для проведения розыгрыша")
+		return
+	}
+
+	if reserveWinners == nil {
+		log.Printf("Недостаточно резервных участников для проведения розыгрыша")
 		return
 	}
 
@@ -171,7 +159,6 @@ func previewFinalDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner) {
 }
 
 
-// confirmAndSendFinalDraw сохраняет результаты и рассылает уведомления победителям (ТЗ п. 5.2)
 func confirmAndSendFinalDraw(bot *tgbotapi.BotAPI, adminID int64) {
 
 	draw, exists := pendingFinalDraws[adminID]

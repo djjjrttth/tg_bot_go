@@ -10,8 +10,6 @@ import (
 )
 
 
-
-
 func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 
 	callback := tgbotapi.NewCallback(query.ID, "")

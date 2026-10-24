@@ -8,24 +8,22 @@ import (
 )
 
 
-
 func getDailyWinnersID(p Partner) []int64 {
 
 	fmt.Println(participants)
 	var n uint32 = p.winnersCnt
-	var participants_cnt uint32 = uint32(len(participants))
+	var participantsCnt uint32 = uint32(len(participants))
 	winnerIDs := make([]int64, 0)
 	
-	if participants_cnt >= n {
+	if participantsCnt >= n {
 		
+		winInds := rand.Perm(int(participantsCnt))
 
-		win_inds := rand.Perm(int(participants_cnt))
-
-		fmt.Println(win_inds)
+		fmt.Println(winInds)
 		fmt.Println()
+
 		for i := range n {
-			winnerIDs = append(winnerIDs, participants[win_inds[i]].tgID)
-			//fmt.Println()
+			winnerIDs = append(winnerIDs, participants[winInds[i]].tgID)
 		}
 		fmt.Println()
 
@@ -65,15 +63,6 @@ func sendMsgToDailyWinners(bot *tgbotapi.BotAPI, dailyWinnerIDs []int64){
 
 	for _, id := range dailyWinnerIDs {
 		sendMsgKeyboard(bot, id, text, getPrizeButton)
-		/*msg := tgbotapi.NewMessage(id, text)
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Получить приз", "getPrize"),
-			),
-		)
-		if _, err := bot.Send(msg); err != nil {
-			log.Printf("Ошибка отправки сообщения: %v", err)
-		}*/
 	}
 }
 
