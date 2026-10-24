@@ -63,13 +63,25 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, user *t
 		case "runFinalDraw":
 			runFinalDraw(bot, company)
 
+		case "previewDailyDraw":
+			previewDailyDraw(bot, user.ID, company)
+		case "confirmDailyDraw":
+			confirmAndSendDailyDraw(bot, user.ID, company)
+		case "previewFinalDraw":
+			previewFinalDraw(bot, user.ID, company)
+			// TODO: Добавить проверку user.ID == AdminID
+			
+		case "confirmFinalDraw":
+			confirmAndSendFinalDraw(bot, user.ID)
+	
+
 	}
 }
 
 
 func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User) {
 
-	//TODO: добавить ограничение на один промокод по дате
+
 	u := users[user.ID]
 	
 	if u.promocode != nil {
@@ -394,25 +406,63 @@ func handleInputCreds(bot *tgbotapi.BotAPI, chatID int64, user *tgbotapi.User, t
 
 func chooseMainFinalWinners(p Partner, participantIDs []int64) []int64 {
 	var finalWinners []int64
-	for len(finalWinners) != 5 {
+	for len(finalWinners) < 5 {
 		ind := rand.IntN(len(participantIDs))
 		pID:= participantIDs[ind]
 		if !slices.Contains(finalWinners, pID) {
 			finalWinners = append(finalWinners, pID)
 		}
+
+		fmt.Println(finalWinners)
 	}
 
 	return finalWinners
 }
 
-func chooseReserveFinalWinners(p Partner, participantIDs, mainFinalWinnerIDs []int64) []int64 {
+/*func chooseReserveFinalWinners(p Partner, participantIDs, mainFinalWinnerIDs []int64) []int64 {
 	var reserveWinners []int64
-	for len(reserveWinners) != 5 {
+	
+	for len(reserveWinners) < 5 {
 		ind := rand.IntN(len(participantIDs))
 		pID:= participantIDs[ind]
 		if !slices.Contains(mainFinalWinnerIDs, pID) && !slices.Contains(reserveWinners, pID) {
 			reserveWinners = append(reserveWinners, pID)
+			participantIDs = slices.DeleteFunc(participantIDs, func(pid int64) bool {
+			return pid == pID
+})
 		}
+
+		fmt.Println(reserveWinners)
+	}
+
+	return reserveWinners
+}*/
+
+func chooseReserveFinalWinners(p Partner, participantIDs, mainFinalWinnerIDs []int64) []int64 {
+	var reserveWinners []int64
+	
+	for len(reserveWinners) < 5 {
+
+		ind := rand.IntN(len(participantIDs))
+		pID := participantIDs[ind]
+
+
+		if !slices.Contains(mainFinalWinnerIDs, pID) && !slices.Contains(reserveWinners, pID) {
+
+			reserveWinners = append(reserveWinners, pID)
+			
+
+			participantIDs = slices.DeleteFunc(participantIDs, func(pid int64) bool {
+				return pid == pID
+			})
+		} else {
+
+			participantIDs = slices.DeleteFunc(participantIDs, func(pid int64) bool {
+				return pid == pID
+			})
+		}
+
+		fmt.Println(reserveWinners)
 	}
 
 	return reserveWinners
@@ -430,6 +480,8 @@ func getFinalWinnersID(p Partner) ([]int64, []int64) {
 			}
 
 		}
+
+		fmt.Println(participantsWithChancesIDs)
 
 		finalWinnersID := chooseMainFinalWinners(p, participantsWithChancesIDs)
 		reserveWinnersID := chooseReserveFinalWinners(p, participantsWithChancesIDs, finalWinnersID)
@@ -473,6 +525,136 @@ func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64){
 			log.Printf("Ошибка отправки сообщения: %v", err)
 		}*/
 	}
+}
+
+func previewDailyDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner) {
+	winnerIDs := getDailyWinnersID(p)
+
+	if winnerIDs == nil {
+		return
+	}
+
+	newDraw := Draw{
+		timestamp:    time.Now(),
+		participants: participants,
+		winners:      winnerIDs,
+	}
+	pendingDailyDraws[adminID] = newDraw
+
+	//TODO: переделать текст
+	var winnersText string
+	for _, id := range winnerIDs {
+		u := users[id]
+		name := u.username
+		if name == "" {
+			name = fmt.Sprintf("ID: %d", id)
+		}
+		winnersText += fmt.Sprintf("• @%s (ID: %d)\n", name, id)
+	}
+
+	text := fmt.Sprintf("🎯 *Предварительные результаты розыгрыша от %s*\n\n"+
+		"Победители (%d шт.):\n%s\n\n"+
+		"Нажмите кнопку ниже, чтобы подтвердить и отправить уведомления.", 
+		p.name, p.winners_cnt, winnersText)
+
+	sendMsgKeyboard(bot, adminID, text, confirmDailyDrawButton)
+}
+
+func confirmAndSendDailyDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner){
+	draw, exists := pendingDailyDraws[adminID]
+	if !exists {
+		return
+	}
+
+	dailyDraws = append(dailyDraws, draw)
+	delete(pendingDailyDraws, adminID)
+	sendMsgToDailyWinners(bot, draw.winners)
+
+	text := fmt.Sprintf("✅ Розыгрыш от %s успешно подтвержден!\n\n" + 
+		"Уведомления отправлены %d победителям.\n" + 
+		"Результаты сохранены в историю.", 
+		p.name, len(draw.winners),
+	)
+	
+	sendMsg(bot, adminID, text)
+}
+
+func previewFinalDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner) {
+
+	fmt.Println("Подтвержаем финальных победителей")
+	mainWinners, reserveWinners := getFinalWinnersID(p)
+
+	fmt.Println(mainWinners)
+	
+	if mainWinners == nil {
+		log.Printf("Недостаточно участников для проведения розыгрыша")
+		return
+	}
+
+	
+	pendingFinalDraws[adminID] = Draw{
+		timestamp:      time.Now(),
+		participants:   participants,
+		winners:        mainWinners,
+		reserveWinners: reserveWinners,
+		isFinal:        true,
+	}
+
+	var mainText, reserveText string
+	
+	for _, id := range mainWinners {
+		u := users[id]
+		name := u.username
+		if name == "" {
+			name = fmt.Sprintf("ID: %d", id)
+		}
+		mainText += fmt.Sprintf("• @%s\n", name)
+	}
+	
+	for _, id := range reserveWinners {
+		u := users[id]
+		name := u.username
+		if name == "" {
+			name = fmt.Sprintf("ID: %d", id)
+		}
+		reserveText += fmt.Sprintf("• @%s\n", name)
+	}
+
+	text := fmt.Sprintf("🏆 *ПРЕДВАРИТЕЛЬНЫЕ ИТОГИ ФИНАЛЬНОГО РОЗЫГРЫША*\n\n"+
+		"🥇 Главные победители (по 2 билета):\n%s\n"+
+		"🥈 Резервные победители:\n%s\n\n"+
+		"Нажмите кнопку ниже для подтверждения.", 
+		mainText, reserveText)
+	
+	
+	sendMsgKeyboard(bot, adminID, text, confirmFinalDrawButton)
+}
+
+
+// confirmAndSendFinalDraw сохраняет результаты и рассылает уведомления победителям (ТЗ п. 5.2)
+func confirmAndSendFinalDraw(bot *tgbotapi.BotAPI, adminID int64) {
+
+	draw, exists := pendingFinalDraws[adminID]
+	if !exists {
+		sendMsg(bot, adminID, "Ошибка: нет неподтвержденного финального розыгрыша. Возможно, он уже был проведен.")
+		return
+	}
+
+
+	finalDraws = append(finalDraws, draw)
+
+	delete(pendingFinalDraws, adminID)
+
+	sendMsgToFinalWinners(bot, draw.winners)
+
+	reserveText := "Ты в резерве финального розыгрыша! 🎟\nЕсли один из главных победителей не заберет свой приз в течение 24 часов, он перейдет к тебе. Ожидай обновления."
+	for _, id := range draw.reserveWinners {
+		sendMsg(bot, id, reserveText)
+	}
+	text := fmt.Sprintf("Финальный розыгрыш успешно подтвержден!\n\nУведомления отправлены:\n• %d главным победителям\n• %d резервным победителям", 
+		len(draw.winners), len(draw.reserveWinners))
+	
+	sendMsg(bot, adminID, text)
 }
 
 

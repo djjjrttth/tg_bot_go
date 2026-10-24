@@ -29,6 +29,8 @@ var checkSubButton = tgbotapi.NewInlineKeyboardButtonData("Проверить п
 var getPrizeButton = tgbotapi.NewInlineKeyboardButtonData("Получить приз", "getPrize")
 var consentYesButton = tgbotapi.NewInlineKeyboardButtonData("Подтвердить", "consentYes")
 var consentNoButton = tgbotapi.NewInlineKeyboardButtonData("Не подтверждать", "consentNo")
+var confirmDailyDrawButton = tgbotapi.NewInlineKeyboardButtonData("Подтвердить и уведомить участников", "confirmDailyDraw")
+var confirmFinalDrawButton = tgbotapi.NewInlineKeyboardButtonData("Подтвердить и уведомить участников", "confirmFinalDraw")
 
 
 var buttons = tgbotapi.NewInlineKeyboardMarkup(
@@ -43,7 +45,15 @@ var buttons = tgbotapi.NewInlineKeyboardMarkup(
 	
 	convertToRow(getRulesButton),
 
+
 	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("📊 Предпросмотр ежедневного розыгрыша", "previewDailyDraw"),
+	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("🏆 Предпросмотр финального розыгрыша", "previewFinalDraw"),
+	),
+
+	/*tgbotapi.NewInlineKeyboardRow(
 	tgbotapi.NewInlineKeyboardButtonData("GetDailyWinners", "getDailyWinners"),
 ),
 
@@ -52,7 +62,7 @@ tgbotapi.NewInlineKeyboardRow(
 ),
 tgbotapi.NewInlineKeyboardRow(
 	tgbotapi.NewInlineKeyboardButtonData("runFinalDraw", "runFinalDraw"),
-),
+),*/
 	
 )
 

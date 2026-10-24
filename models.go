@@ -36,12 +36,20 @@ type Partner struct {
 	prizes_cnt uint32
 }
 
-type Draw struct {
+/*type Draw struct {
 	timestamp time.Time
 	participants []*Participant
 	//participants []Participant
 
 	winners []int64
+}*/
+
+type Draw struct {
+	timestamp time.Time
+	participants []*Participant
+	winners []int64        
+	reserveWinners []int64 
+	isFinal bool           
 }
 
 type winnerCreds struct {
