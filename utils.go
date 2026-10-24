@@ -27,7 +27,7 @@ func findParticipantByID(id int64) (int, bool){
 
 	for i := range n {
 		p := participants[i]
-		if p.tgID == id {
+		if p.TgID == id {
 			return i, true
 		}
 	}

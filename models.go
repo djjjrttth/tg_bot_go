@@ -5,58 +5,66 @@ import (
 )
 
 type User struct {
-
-	tgID int64
-	username string
-	lastname string
-	promocode *Promo
-	chances uint8
-	registered bool
-	active bool
-	winnerCreds *winnerCreds
-
-	PrizeNotifiedAt time.Time
+	TgID int64 `gorm:"primaryKey"`
+	Username string
+	Lastname string
+	Promocode *Promo `gorm:"serializer:json;type:jsonb"` 
+	Chances uint8 `gorm:"default:0"`
+	Registered bool `gorm:"default:false"`
+	Active bool `gorm:"default:false"`
+	WinnerCreds *WinnerCreds `gorm:"serializer:json;type:jsonb"` 
+	PrizeNotifiedAt time.Time 
 	IsPrizeClaimed  bool      
-
 }
 
 type Promo struct {
-	value string
-	company string
-	expiresAt time.Time
-	issuedAt time.Time
-	usagePlace string
+	ID uint `gorm:"primaryKey"`
+	Value string `gorm:"uniqueIndex"`
+	PartnerID uint `gorm:"index"`
+	Company string
+	ExpiresAt time.Time
+	IssuedAt *time.Time `gorm:"index"` 
+	UsagePlace string
 }
 
-type Participant struct{
-	tgID int64
-	timestamp time.Time
+type Participant struct {
+	TgID int64`gorm:"uniqueIndex:uq_daily_participant"`
+	Timestamp time.Time
 }
 
 type Prize struct {
-	name string
-	instruction string
+	Name string
+	Instruction string
 }
-
 
 type Partner struct {
-	name string
-	winnersCnt uint32
-	prizeCnt uint32
-	prize Prize
+	ID uint `gorm:"primaryKey"`
+	Name string `gorm:"uniqueIndex"`
+	ChannelUsername string
+	WinnersCnt uint32
+	PrizeCnt uint32
+	PrizeName  string 
+	PrizeInstruction string 
 }
-
 
 type Draw struct {
-	timestamp time.Time
-	participants []*Participant
-	winners []int64        
-	reserveWinners []int64 
-	isFinal bool           
+	ID uint `gorm:"primaryKey"` 
+	Timestamp time.Time
+
+	Participants []*Participant `gorm:"serializer:json;type:jsonb"` 
+	Winners []int64 `gorm:"serializer:json;type:jsonb"` 
+	ReserveWinners []int64 `gorm:"serializer:json;type:jsonb"` 
+	IsFinal bool
 }
 
-type winnerCreds struct {
-	firstName string
-	lastName  string
-	consent   *bool
+type WinnerCreds struct { 
+	FirstName string
+	LastName string
+	Consent *bool
+}
+
+type PendingDrawData struct {
+	WinnerIDs []int64
+	ReserveWinners []int64
+	Partner Partner
 }
