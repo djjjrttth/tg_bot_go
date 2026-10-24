@@ -7,7 +7,7 @@ import (
 var company = Partner{
 	ID:               1,
 	Name:             "Yandex",
-	ChannelUsername:  "@yandex_channel",
+	ChannelID:  -1001009185002,
 	WinnersCnt:       3,
 	PrizeCnt:         3,
 	PrizeName:        "Айфон 17 Про Макс",

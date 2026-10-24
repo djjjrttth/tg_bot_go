@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
-	"math/rand/v2"
-	"slices"
+	//"math/rand/v2"
+	//"slices"
 	"time"
-
+	"errors"
+	"gorm.io/gorm"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -54,94 +55,132 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 }
 
 func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
-	stateMutex.Lock()
-	defer stateMutex.Unlock()
+	
+	log.Printf("Выдаем промокод")
+	var previousPromo Promo
 
-	u := users[userID]
-	if u == nil {
+	today := time.Now().Format("2006-01-02")
+	err := DB.Where("issued_to = ? AND issued_day = ?", userID, today).First(&previousPromo).Error
+	if err == nil {
+		text := fmt.Sprintf("Вы сегодня уже получили промокод\n\nВаш промокод от %s: %s", previousPromo.Company, previousPromo.Value)
+		sendMsg(bot, chatID, text)
 		return
 	}
 
-	if u.Promocode != nil {
-		todayDate := time.Now().Format("2006-01-02")
+	var promo Promo
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		err := tx.Raw(`
+			SELECT * FROM promos 
+			WHERE partner_id = ? AND issued_at IS NULL 
+			ORDER BY id 
+			FOR UPDATE SKIP LOCKED 
+			LIMIT 1`, company.ID).Scan(&promo).Error
+		
+		if err != nil {
+			return err
+		}
+		
+		if promo.ID == 0 {
+			return gorm.ErrRecordNotFound
+		}
 
-		issuedAtDate := u.Promocode.IssuedAt.Format("2006-01-02")
-		if todayDate == issuedAtDate {
-			text := fmt.Sprintf("Вы сегодня уже получили промокод\n\nВаш промокод от %s: %v", u.Promocode.Company, u.Promocode.Value)
-			sendMsg(bot, chatID, text)
+		now := time.Now()
+		promo.IssuedAt = &now
+		promo.IssuedTo = &userID
+		promo.IssuedDay = today
+		return tx.Save(&promo).Error
+	})
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			text := fmt.Sprintf("Промокоды от %s уже закончились — их разобрали быстрее всех 🔥\nНо ты все еще можешь подписаться на партнера и принять участие в розыгрыше призов дня.", company.Name)
+			sendMsgKeyboard(bot, chatID, text, takePartButton)
 			return
 		}
-		u.Promocode = nil
+		log.Printf("Ошибка БД при выдаче промокода: %v", err)
+		sendMsg(bot, chatID, "Произошла техническая ошибка. Попробуйте позже.")
+		return
 	}
 
-	if len(available_promos) > 0 {
-		ind := rand.IntN(len(available_promos))
-		promo := available_promos[ind]
-		u.Promocode = &promo
-		available_promos = slices.Delete(available_promos, ind, ind+1)
-		
-		if !u.Active {
-			u.Active = true
-			if u.Chances < 10 {
-				u.Chances++
-			}
-		}
-		text := fmt.Sprintf("Твой фестивальный бонус от %s готов 🎁\n"+
-			"Промокод: %v\nИспользуй его до %s на %s.\n\n"+
-			"Теперь можешь принять участие в розыгрыше призов дня.", promo.Company, promo.Value, promo.ExpiresAt, promo.UsagePlace)
-		sendMsgKeyboard(bot, chatID, text, takePartButton)
-	} else {
-		text := fmt.Sprintf("Промокоды от %s уже закончились — их разобрали быстрее всех 🔥\nНо ты все еще можешь подписаться на партнера и принять участие в розыгрыше призов дня.", company.Name)
-		sendMsgKeyboard(bot, chatID, text, takePartButton)
-	}
+	DB.Model(&User{}).Where("tg_id = ? AND last_active_day != ?", userID, today).
+		Updates(map[string]interface{}{
+			"chances":         gorm.Expr("LEAST(chances + 1, 10)"),
+			"last_active_day": today,
+		})
+
+	
+	text := fmt.Sprintf("Твой фестивальный бонус от %s готов 🎁\n"+
+	"Промокод: %v\nИспользуй его до %s на %s.\n\n"+
+	"Теперь можешь принять участие в розыгрыше призов дня.", promo.Company, promo.Value, promo.ExpiresAt, promo.UsagePlace)
+	sendMsgKeyboard(bot, chatID, text, takePartButton)
+	
+	
 }
 
 func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
-	stateMutex.Lock()
-	defer stateMutex.Unlock()
-	
-	u := users[userID]
-	if u == nil {
+
+	if err := markSubscribed(userID, company.ID); err != nil {
+		log.Printf("Ошибка создания подписки: %v", err)
+		sendMsg(bot, chatID, "Произошла техническая ошибка. Попробуйте позже.")
 		return
 	}
 
-	u.Registered = true
 	text := fmt.Sprintf("Вы подписались на %s\n", company.Name)
-	sendMsg(bot, chatID, text)
+	sendMsgKeyboard(bot, chatID, text, checkSubButton)
 }
 
+
+
 func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
-	stateMutex.Lock()
-	defer stateMutex.Unlock()
-	
-	u := users[userID]
-	if u == nil {
-		log.Printf("Ошибка: пользователя не существует")
+
+	fmt.Println(isSubscribed(userID, company.ID))
+	if !isSubscribed(userID, company.ID) {
+		text := fmt.Sprintf(
+			"Пока не вижу подписку 👀\nПодпишись на аккаунт %s, вернись в бот и попробуй еще раз.",
+			company.Name,
+		)
+		sendMsgKeyboard(bot, chatID, text, makeSubButton, checkSubButton)
 		return
 	}
 
-	if u.Registered {
-		if _, ok := findParticipantByID(userID); !ok {
-			participants = append(participants, &Participant{
-				TgID:      userID,
-				Timestamp: time.Now(),
-			})
-			if !u.Active {
-				u.Active = true
-				if u.Chances < 10 {
-					u.Chances++
-				}
-			}
-			text := fmt.Sprintf("Ты в лайнапе ✅\n\nЗаявка на розыгрыш призов от %s зарегистрирована.\n\nВозвращайся завтра — на сцену выйдет новый партнер.\n\nВсего шансов: %d", company.Name, u.Chances)
-			sendMsg(bot, chatID, text)
-		} else {
-			text := fmt.Sprintf("Ты уже участвуешь в сегодняшнем розыгрыше ✅\n\nРезультаты сообщим после подведения итогов.")
-			sendMsg(bot, chatID, text)
-		}
-	} else {
-		text := fmt.Sprintf("Пока не вижу подписку 👀\nПодпишись на аккаунт %s, вернись в бот и попробуй еще раз.", company.Name)
-		sendMsgKeyboard(bot, chatID, text, makeSubButton, checkSubButton)
+	today := time.Now().Format("2006-01-02")
+
+	var existingPart Participant
+	err := DB.Where("tg_id = ? AND partner_id = ? AND day = ?", userID, company.ID, today).First(&existingPart).Error
+	if err == nil {
+		text := "Ты уже участвуешь в сегодняшнем розыгрыше ✅\n\nРезультаты сообщим после подведения итогов."
+		sendMsg(bot, chatID, text)
+		return
 	}
+
+	newPart := Participant{
+		TgID:      userID,
+		PartnerID: company.ID,
+		Day:       today,
+		Timestamp: time.Now(),
+	}
+
+	if err := DB.Create(&newPart).Error; err != nil {
+		log.Printf("Ошибка регистрации участника: %v", err)
+		sendMsg(bot, chatID, "Произошла ошибка при регистрации. Попробуйте позже.")
+		return
+	}
+
+	
+	DB.Model(&User{}).Where("tg_id = ? AND last_active_day != ?", userID, today).
+		Updates(map[string]interface{}{
+			"chances":         gorm.Expr("LEAST(chances + 1, 10)"),
+			"last_active_day": today,
+		})
+
+	var u User
+	DB.First(&u, "tg_id = ?", userID)
+
+	text := fmt.Sprintf(
+		"Ты в лайнапе ✅\n\nЗаявка на розыгрыш призов от %s зарегистрирована.\n\nВозвращайся завтра — на сцену выйдет новый партнер.\n\nВсего шансов: %d",
+		company.Name, u.Chances,
+	)
+	sendMsg(bot, chatID, text)
 }
 
 func handleTakePart(bot *tgbotapi.BotAPI, chatID int64) {
@@ -150,12 +189,59 @@ func handleTakePart(bot *tgbotapi.BotAPI, chatID int64) {
 }
 
 func handleGetChances(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
-	u := users[userID]
-	if u == nil {
+	var u User
+	if err := DB.First(&u, "tg_id = ?", userID).Error; err != nil {
+		sendMsg(bot, chatID, "Вы еще не участвовали в розыгрышах.")
 		return
 	}
-	text := fmt.Sprintf("Твой фестивальный пропуск\nНакоплено шансов: %d из 10\nЧем больше дней розыгрыша ты посетишь, тем выше вероятность выигратьт главный приз.", u.Chances)
-	sendMsg(bot, chatID, text)
+
+	var passedDays int64
+	DB.Model(&Participant{}).
+		Where("tg_id = ?", userID).
+		Distinct("day").
+		Count(&passedDays)
+
+	var partnerIDs []uint
+	DB.Model(&Participant{}).
+		Where("tg_id = ?", userID).
+		Distinct("partner_id").
+		Pluck("partner_id", &partnerIDs)
+
+	var partnerNames []string
+	for _, pid := range partnerIDs {
+		var partner Partner
+		if err := DB.First(&partner, "id = ?", pid).Error; err == nil {
+			partnerNames = append(partnerNames, partner.Name)
+		}
+	}
+
+	partnersList := "—"
+	if len(partnerNames) > 0 {
+		partnersList = ""
+		for _, name := range partnerNames {
+			partnersList += fmt.Sprintf("• %s\n", name)
+		}
+	}
+
+	leftDays := int64(10) - passedDays
+	if leftDays < 0 {
+		leftDays = 0
+	}
+
+	text := fmt.Sprintf("*Твой фестивальный пропуск*\n\n"+
+		"Накоплено шансов: *%d из 10*\n"+
+		"Пройдено дней: *%d*\n"+
+		"Осталось дней: *%d*\n\n"+
+		"Партнеры, с которыми ты взаимодействовал:\n%s\n"+
+		"*Главный приз:* Билет на Канье Уэста!\n"+
+		"Чем больше дней ты посетишь, тем выше вероятность забрать главный приз.",
+		u.Chances, passedDays, leftDays, partnersList)
+
+	msg := tgbotapi.NewMessage(chatID, text)
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("Ошибка отправки сообщения: %v", err)
+		sendMsg(bot, chatID, text)
+	}
 }
 
 func handleGetInstruction(bot *tgbotapi.BotAPI, chatID int64) {

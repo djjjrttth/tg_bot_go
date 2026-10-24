@@ -14,7 +14,8 @@ type User struct {
 	Active bool `gorm:"default:false"`
 	WinnerCreds *WinnerCreds `gorm:"serializer:json;type:jsonb"` 
 	PrizeNotifiedAt time.Time 
-	IsPrizeClaimed  bool      
+	IsPrizeClaimed bool
+	LastActiveDay string `gorm:"type:varchar(10)"` 
 }
 
 type Promo struct {
@@ -25,10 +26,15 @@ type Promo struct {
 	ExpiresAt time.Time
 	IssuedAt *time.Time `gorm:"index"` 
 	UsagePlace string
+	IssuedTo *int64 `gorm:"index"`
+	IssuedDay string `gorm:"type:varchar(10);index"`
 }
 
 type Participant struct {
-	TgID int64`gorm:"uniqueIndex:uq_daily_participant"`
+	ID uint `gorm:"primaryKey"`
+	TgID int64 `gorm:"uniqueIndex:uq_daily_participant"`
+	PartnerID uint `gorm:"uniqueIndex:uq_daily_participant"`
+	Day string `gorm:"type:varchar(10);uniqueIndex:uq_daily_participant"`
 	Timestamp time.Time
 }
 
@@ -40,7 +46,7 @@ type Prize struct {
 type Partner struct {
 	ID uint `gorm:"primaryKey"`
 	Name string `gorm:"uniqueIndex"`
-	ChannelUsername string
+	ChannelID int64
 	WinnersCnt uint32
 	PrizeCnt uint32
 	PrizeName  string 
@@ -67,4 +73,11 @@ type PendingDrawData struct {
 	WinnerIDs []int64
 	ReserveWinners []int64
 	Partner Partner
+}
+
+type Subscription struct {
+	ID        uint      `gorm:"primaryKey"`
+	TgID      int64     `gorm:"uniqueIndex:uq_subscription"`
+	PartnerID uint      `gorm:"uniqueIndex:uq_subscription"`
+	CreatedAt time.Time
 }

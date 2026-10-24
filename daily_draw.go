@@ -3,29 +3,41 @@ package main
 import (
 	"fmt"
 	"time"
+	"log"
 	"math/rand/v2"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func getDailyWinnersID(p Partner) []int64 {
-	fmt.Println(participants)
-	var n uint32 = p.WinnersCnt
-	var participantsCnt uint32 = uint32(len(participants))
-	winnerIDs := make([]int64, 0)
+	today := time.Now().Format("2006-01-02")
 	
-	if participantsCnt >= n {
-		winInds := rand.Perm(int(participantsCnt))
-		fmt.Println(winInds)
-		fmt.Println()
-		for i := range n {
-			winnerIDs = append(winnerIDs, participants[winInds[i]].TgID)
-		}
-		fmt.Println()
-		fmt.Println(winnerIDs)
-		return winnerIDs
+	var participantTgIDs []int64
+	err := DB.Model(&Participant{}).
+		Where("partner_id = ? AND day = ?", p.ID, today).
+		Pluck("tg_id", &participantTgIDs).Error
+		
+	if err != nil {
+		log.Printf("Ошибка получения участников из БД: %v", err)
+		return nil
 	}
-	return nil
+
+	participantsCnt := len(participantTgIDs)
+	if uint32(participantsCnt) < p.WinnersCnt {
+		log.Printf("Недостаточно участников для розыгрыша: %d из %d", participantsCnt, p.WinnersCnt)
+		return nil
+	}
+
+	winInds := rand.Perm(participantsCnt)
+	winnerIDs := make([]int64, 0, p.WinnersCnt)
+
+	for i := uint32(0); i < p.WinnersCnt; i++ {
+		winnerIDs = append(winnerIDs, participantTgIDs[winInds[i]])
+	}
+
+	return winnerIDs
 }
+
+// ... остальные функции (dailyDraw, sendMsgToDailyWinners и т.д.) остаются без изменений ...
 
 func dailyDraw(bot *tgbotapi.BotAPI, p Partner) {
 	winnerIDs := getDailyWinnersID(p)

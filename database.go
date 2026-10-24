@@ -33,7 +33,7 @@ func InitDB() {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	err = db.AutoMigrate(
-		&User{}, &Partner{}, &Promo{}, &Participant{}, &Draw{},
+		&User{}, &Partner{}, &Promo{}, &Participant{}, &Draw{}, &Subscription{},
 	)
 	if err != nil {
 		log.Fatal("Ошибка миграции БД: ", err)

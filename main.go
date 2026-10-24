@@ -8,7 +8,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func createUser(newUser *tgbotapi.User) {
+/*func createUser(newUser *tgbotapi.User) {
 	users[newUser.ID] = &User{
 		TgID:       newUser.ID,
 		Username:   newUser.UserName,
@@ -18,7 +18,7 @@ func createUser(newUser *tgbotapi.User) {
 		Registered: false,
 		Active:     false,
 	} 
-}
+}*/
 
 func init() {
 	if err := godotenv.Load(); err != nil {
@@ -56,15 +56,28 @@ func main() {
 			} else if update.Message.IsCommand() {
 				switch update.Message.Command() {
 				case "start":
-					// TODO: добавить приветственный баннер
-					createUser(newUser)
-					
+
+					var u User
+					DB.FirstOrCreate(&u, User{
+						TgID:     newUser.ID,
+						Username: newUser.UserName,
+						Lastname: newUser.LastName,
+					})
 					text := "Добро пожаловать в Бот розыгрышей!"
 					msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
 					msg.ReplyMarkup = buttons
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
+					// TODO: добавить приветственный баннер
+					/*createUser(newUser)
+					
+					text := "Добро пожаловать в Бот розыгрышей!"
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
+					msg.ReplyMarkup = buttons
+					if _, err := bot.Send(msg); err != nil {
+						log.Panic(err)
+					}*/
 				}
 			} 
 		} else if update.CallbackQuery != nil {
