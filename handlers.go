@@ -9,21 +9,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func sendMsg(bot *tgbotapi.BotAPI, chatID int64, text string){
-	msg := tgbotapi.NewMessage(chatID, text)
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Ошибка отправки сообщения: %v", err)
-	}
-}
 
-func sendMsgKeyboard(bot *tgbotapi.BotAPI, chatID int64, text string, button ...tgbotapi.InlineKeyboardButton) {
-	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ReplyMarkup = convertToMarkup(button)
-
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Ошибка отправки сообщения: %v", err)
-	}
-}
 
 
 func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
@@ -74,16 +60,13 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 		case "confirmFinalDraw":
 			confirmAndSendFinalDraw(bot, userID)
 	
-
 	}
 }
 
 
 func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
 
-
 	u := users[userID]
-	
 	
 	if u.promocode != nil {
 		todayDate := time.Now().Format("2006-01-02")
@@ -115,37 +98,20 @@ func handleGetPromo(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
 			"Промокод: %v\nИспользуй его до %s на %s.\n\n" +
 			"Теперь можешь принять участие в розыгрыше призов дня.", promo.company, promo.value, promo.expiresAt, promo.usagePlace)
 		
-		//sendMsg(bot, chatID, text)
 		sendMsgKeyboard(bot, chatID, text, takePartButton)
 		
 		
 		} else {
 			text := fmt.Sprintf("Промокоды от %s уже закончились — их разобрали быстрее всех 🔥\nНо ты все еще можешь подписаться на партнера и принять участие в розыгрыше призов дня.", company.name)
-			/*msg := tgbotapi.NewMessage(chatID, text)
-			msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-				tgbotapi.NewInlineKeyboardRow(
-					tgbotapi.NewInlineKeyboardButtonData("Участвовать в розыгрыше", "take_part"),
-				),
-			)
-
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
-			}*/
 			sendMsgKeyboard(bot, chatID, text, takePartButton)
 
 		}
 }
-		
-
-
 
 func handleMakeSub(bot *tgbotapi.BotAPI, chatID int64, userID int64){
-	//fmt.Println(users[user.ID])
 	u := users[userID]
-	//fmt.Println(u.registered)
 
 	u.registered = true
-	//fmt.Printf("Статус подписки: %v\n", statusSub)
 
 	text := fmt.Sprintf("Вы подписались на %s\n", company.name)
 	sendMsg(bot, chatID, text)
@@ -185,20 +151,7 @@ func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, userID int64){
 
 	} else {
 		text := fmt.Sprintf("Пока не вижу подписку 👀\nПодпишись на аккаунт %s, вернись в бот и попробуй еще раз.", company.name)
-		
 		sendMsgKeyboard(bot, chatID, text, makeSubButton, checkSubButton)
-		/*msg := tgbotapi.NewMessage(chatID, text)
-
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			convertToRow(makeSubButton),
-
-			convertToRow(checkSubButton),
-		)
-
-
-	if _, err := bot.Send(msg); err != nil {
-		log.Panic(err)
-	}*/
 	}
 }
 
@@ -206,23 +159,8 @@ func handleCheckSub(bot *tgbotapi.BotAPI, chatID int64, userID int64){
 func handleTakePart(bot *tgbotapi.BotAPI, chatID int64) {
 
 	text := fmt.Sprintf("Чтобы попасть в розыгрыш призов от %s, подпишись на аккаунт партнера.", company.name)
-
 	sendMsgKeyboard(bot, chatID, text, makeSubButton, checkSubButton)
-	/*msg := tgbotapi.NewMessage(chatID, text)
 
-	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(fmt.Sprintf("Подписаться на %s", company.name), "makeSub"),
-			),
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Проверить подписку", "checkSub"),
-			),
-		)
-
-
-	if _, err := bot.Send(msg); err != nil {
-		log.Panic(err)
-	}*/
 }
 
 func handleGetChances(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
@@ -253,87 +191,6 @@ func handleGetRules(bot *tgbotapi.BotAPI, chatID int64) {
 		"• Результаты розыгрыша объявляются организаторами."
 
 	sendMsg(bot, chatID, text)
-}
-
-
-func getDailyWinnersID(p Partner) []int64 {
-
-	fmt.Println(participants)
-	var n uint32 = p.winnersCnt
-	var participants_cnt uint32 = uint32(len(participants))
-	winnerIDs := make([]int64, 0)
-	
-	if participants_cnt >= n {
-		
-
-		win_inds := rand.Perm(int(participants_cnt))
-
-		fmt.Println(win_inds)
-		fmt.Println()
-		for i := range n {
-			winnerIDs = append(winnerIDs, participants[win_inds[i]].tgID)
-			//fmt.Println()
-		}
-		fmt.Println()
-
-		fmt.Println(winnerIDs)
-		return winnerIDs
-
-	}
-
-	return nil
-}
-
-func dailyDraw(bot *tgbotapi.BotAPI, p Partner){
-	winnerIDs := getDailyWinnersID(p)
-	fmt.Println(winnerIDs)
-
-	var newDraw = Draw{
-		timestamp: time.Now(),
-		participants : participants,
-		winners : winnerIDs,
-	}
-
-	dailyDraws = append(dailyDraws, newDraw)
-	sendMsgToDailyWinners(bot, winnerIDs)
-	fmt.Println(dailyDraws)
-}
-
-func sendMsgToDailyWinners(bot *tgbotapi.BotAPI, dailyWinnerIDs []int64){
-
-	text := fmt.Sprintf("Ты в числе хедлайнеров дня 🔥\n" + 
-		"Ты выиграл %s от %s.\n" +
-		"Чтобы получить приз, %s.",
-		company.prize.name, 
-		company.name, 
-		company.prize.instruction,
-	)
-
-	for _, id := range dailyWinnerIDs {
-		sendMsgKeyboard(bot, id, text, getPrizeButton)
-		/*msg := tgbotapi.NewMessage(id, text)
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Получить приз", "getPrize"),
-			),
-		)
-		if _, err := bot.Send(msg); err != nil {
-			log.Printf("Ошибка отправки сообщения: %v", err)
-		}*/
-	}
-}
-
-func findParticipantByID(id int64) (int, bool){
-	var n int = len(participants)
-
-	for i := range n {
-		p := participants[i]
-		if p.tgID == id {
-			return i, true
-		}
-	}
-
-	return -1, false
 }
 
 func handleGetPrize(bot *tgbotapi.BotAPI, chatID int64, userID int64){
@@ -378,25 +235,10 @@ func inputLastName(bot *tgbotapi.BotAPI, chatID int64, userID int64, lastName st
 	
 	sendMsgKeyboard(bot, chatID, text, consentYesButton, consentNoButton)
 
-	/*msg := tgbotapi.NewMessage(chatID, text)
-	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Подтвердить", "consentYes"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Не подтверждать", "consentNo"),
-		),
-	)
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Ошибка отправки сообщения: %v", err)
-	}*/
-
 }
 
 
 func inputConsent(bot *tgbotapi.BotAPI, chatID int64, userID int64){
-	
-
 	fmt.Println("Согласие получено")
 }
 
@@ -415,308 +257,4 @@ func handleInputCreds(bot *tgbotapi.BotAPI, chatID int64, userID int64, text str
 	
 }
 
-func chooseMainFinalWinners(p Partner, participantIDs []int64) []int64 {
-	var finalWinners []int64
-	for len(finalWinners) < 5 {
-		ind := rand.IntN(len(participantIDs))
-		pID:= participantIDs[ind]
-		if !slices.Contains(finalWinners, pID) {
-			finalWinners = append(finalWinners, pID)
-		}
-
-		fmt.Println(finalWinners)
-	}
-
-	return finalWinners
-}
-
-/*func chooseReserveFinalWinners(p Partner, participantIDs, mainFinalWinnerIDs []int64) []int64 {
-	var reserveWinners []int64
-	
-	for len(reserveWinners) < 5 {
-		ind := rand.IntN(len(participantIDs))
-		pID:= participantIDs[ind]
-		if !slices.Contains(mainFinalWinnerIDs, pID) && !slices.Contains(reserveWinners, pID) {
-			reserveWinners = append(reserveWinners, pID)
-			participantIDs = slices.DeleteFunc(participantIDs, func(pid int64) bool {
-			return pid == pID
-})
-		}
-
-		fmt.Println(reserveWinners)
-	}
-
-	return reserveWinners
-}*/
-
-func chooseReserveFinalWinners(p Partner, participantIDs, mainFinalWinnerIDs []int64) []int64 {
-	var reserveWinners []int64
-	
-	for len(reserveWinners) < 5 {
-
-		ind := rand.IntN(len(participantIDs))
-		pID := participantIDs[ind]
-
-
-		if !slices.Contains(mainFinalWinnerIDs, pID) && !slices.Contains(reserveWinners, pID) {
-
-			reserveWinners = append(reserveWinners, pID)
-			
-
-			participantIDs = slices.DeleteFunc(participantIDs, func(pid int64) bool {
-				return pid == pID
-			})
-		} else {
-
-			participantIDs = slices.DeleteFunc(participantIDs, func(pid int64) bool {
-				return pid == pID
-			})
-		}
-
-		fmt.Println(reserveWinners)
-	}
-
-	return reserveWinners
-}
-
-func getFinalWinnersID(p Partner) ([]int64, []int64) {
-	var participantsWithChancesIDs []int64
-
-	//TODO: сделать проверку что уникальных участников не менее 10
-	if len(participants) >= 10 {
-		for _, p := range participants {
-			u := users[p.tgID]
-			for range u.chances {
-				participantsWithChancesIDs = append(participantsWithChancesIDs, p.tgID)
-			}
-
-		}
-
-		fmt.Println(participantsWithChancesIDs)
-
-		finalWinnersID := chooseMainFinalWinners(p, participantsWithChancesIDs)
-		reserveWinnersID := chooseReserveFinalWinners(p, participantsWithChancesIDs, finalWinnersID)
-
-		fmt.Printf("Главные победители: %v\n", finalWinnersID)
-		fmt.Printf("Резервные победители: %v\n\n", reserveWinnersID)
-
-		return finalWinnersID, reserveWinnersID
-
-	}
-
-	log.Printf("Недостаточно участников для проведения финального розыгрыша")
-	return nil, nil
-}
-
-func runFinalDraw(bot *tgbotapi.BotAPI, p Partner){
-	finalWinnerIDs, reserveWinners := getFinalWinnersID(p)
-
-	if finalWinnerIDs != nil && reserveWinners != nil {
-		sendMsgToFinalWinners(bot, finalWinnerIDs)
-	}
-	
-
-}
-
-func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64){
-
-	text := fmt.Sprintf("Твой сентябрь выходит на главную сцену 🔥\n" + 
-		"Ты выиграл билет на Канье Уэста!" + 
-		"Чтобы подтвердить получение приза, нажми кнопку ниже и оставь необходимые контактные данные.")
-
-	for _, id := range finalWinnerIDs {
-		sendMsgKeyboard(bot, id, text, getPrizeButton)
-		/*msg := tgbotapi.NewMessage(id, text)
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Получить приз", "getPrize"),
-			),
-		)
-		if _, err := bot.Send(msg); err != nil {
-			log.Printf("Ошибка отправки сообщения: %v", err)
-		}*/
-	}
-}
-
-func previewDailyDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner) {
-	winnerIDs := getDailyWinnersID(p)
-
-	if winnerIDs == nil {
-		return
-	}
-
-	newDraw := Draw{
-		timestamp:    time.Now(),
-		participants: participants,
-		winners:      winnerIDs,
-	}
-	pendingDailyDraws[adminID] = newDraw
-
-	//TODO: переделать текст
-	var winnersText string
-	for _, id := range winnerIDs {
-		u := users[id]
-		name := u.username
-		if name == "" {
-			name = fmt.Sprintf("ID: %d", id)
-		}
-		winnersText += fmt.Sprintf("• @%s (ID: %d)\n", name, id)
-	}
-
-	text := fmt.Sprintf("🎯 *Предварительные результаты розыгрыша от %s*\n\n"+
-		"Победители (%d шт.):\n%s\n\n"+
-		"Нажмите кнопку ниже, чтобы подтвердить и отправить уведомления.", 
-		p.name, p.winnersCnt, winnersText)
-
-	sendMsgKeyboard(bot, adminID, text, confirmDailyDrawButton)
-}
-
-func confirmAndSendDailyDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner){
-	draw, exists := pendingDailyDraws[adminID]
-	if !exists {
-		return
-	}
-
-	dailyDraws = append(dailyDraws, draw)
-	delete(pendingDailyDraws, adminID)
-	sendMsgToDailyWinners(bot, draw.winners)
-
-	text := fmt.Sprintf("✅ Розыгрыш от %s успешно подтвержден!\n\n" + 
-		"Уведомления отправлены %d победителям.\n" + 
-		"Результаты сохранены в историю.", 
-		p.name, len(draw.winners),
-	)
-	
-	sendMsg(bot, adminID, text)
-}
-
-func previewFinalDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner) {
-
-	fmt.Println("Подтвержаем финальных победителей")
-	mainWinners, reserveWinners := getFinalWinnersID(p)
-
-	fmt.Println(mainWinners)
-	
-	if mainWinners == nil {
-		log.Printf("Недостаточно участников для проведения розыгрыша")
-		return
-	}
-
-	
-	pendingFinalDraws[adminID] = Draw{
-		timestamp:      time.Now(),
-		participants:   participants,
-		winners:        mainWinners,
-		reserveWinners: reserveWinners,
-		isFinal:        true,
-	}
-
-	var mainText, reserveText string
-	
-	for _, id := range mainWinners {
-		u := users[id]
-		name := u.username
-		if name == "" {
-			name = fmt.Sprintf("ID: %d", id)
-		}
-		mainText += fmt.Sprintf("• @%s\n", name)
-	}
-	
-	for _, id := range reserveWinners {
-		u := users[id]
-		name := u.username
-		if name == "" {
-			name = fmt.Sprintf("ID: %d", id)
-		}
-		reserveText += fmt.Sprintf("• @%s\n", name)
-	}
-
-	text := fmt.Sprintf("🏆 *ПРЕДВАРИТЕЛЬНЫЕ ИТОГИ ФИНАЛЬНОГО РОЗЫГРЫША*\n\n"+
-		"🥇 Главные победители (по 2 билета):\n%s\n"+
-		"🥈 Резервные победители:\n%s\n\n"+
-		"Нажмите кнопку ниже для подтверждения.", 
-		mainText, reserveText)
-	
-	
-	sendMsgKeyboard(bot, adminID, text, confirmFinalDrawButton)
-}
-
-
-// confirmAndSendFinalDraw сохраняет результаты и рассылает уведомления победителям (ТЗ п. 5.2)
-func confirmAndSendFinalDraw(bot *tgbotapi.BotAPI, adminID int64) {
-
-	draw, exists := pendingFinalDraws[adminID]
-	if !exists {
-		sendMsg(bot, adminID, "Ошибка: нет неподтвержденного финального розыгрыша. Возможно, он уже был проведен.")
-		return
-	}
-
-
-	finalDraws = append(finalDraws, draw)
-
-	delete(pendingFinalDraws, adminID)
-
-	sendMsgToFinalWinners(bot, draw.winners)
-
-	reserveText := "Ты в резерве финального розыгрыша! 🎟\nЕсли один из главных победителей не заберет свой приз в течение 24 часов, он перейдет к тебе. Ожидай обновления."
-	for _, id := range draw.reserveWinners {
-		sendMsg(bot, id, reserveText)
-	}
-	text := fmt.Sprintf("Финальный розыгрыш успешно подтвержден!\n\nУведомления отправлены:\n• %d главным победителям\n• %d резервным победителям", 
-		len(draw.winners), len(draw.reserveWinners))
-	
-	sendMsg(bot, adminID, text)
-}
-
-
-func getStatistics(){
-
-}
-
-func getTotalStarts() {
-
-}
-
-func getNewUsersDaily() {
-
-}
-
-func getPromoRequests() {
-
-}
-
-func getIssuedPromoCount(){
-
-}
-
-
-func getLeftPromoAmount(){
-
-}
-
-func getParticipantsAmount(){
-
-}
-
-
-
-func startDailyDraw(bot *tgbotapi.BotAPI, adminID int64) {
-	go func() {
-
-		for {
-			now := time.Now()
-			//next := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
-			next := now.Add(1 * time.Minute)
-			if now.After(next){
-				next = next.Add(24 * time.Hour)
-			}
-
-			pauseDuration := time.Until(next)
-			time.Sleep(pauseDuration)
-
-			previewDailyDraw(bot, adminID, company)
-		}
-		
-	}()
-}
 
