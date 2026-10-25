@@ -1,8 +1,8 @@
 package main
 
-import (
+/*import (
 	"time"
-)
+)*/
 
 var company = Partner{
 	ID:               1,
@@ -15,7 +15,7 @@ var company = Partner{
 }
 
 
-var promo1 = Promo{
+/*var promo1 = Promo{
 	ID:         1,
 	Value:      "ABCD1234",
 	PartnerID:  1,
@@ -60,11 +60,11 @@ var users = map[int64]*User{
 	10: &user1, 11: &user2, 12: &user3, 13: &user4, 14: &user5,
 	15: &user6, 16: &user7, 17: &user8, 18: &user9, 19: &user10,
 }
+var dailyDraws = []Draw{}
+var finalDraws = []Draw{}
 
-var participants = []*Participant{}
+var participants = []*Participant{}*/
 
 var pendingDailyDraws = make(map[int64]*PendingDrawData)
 var pendingFinalDraws = make(map[int64]*PendingDrawData)
 
-var dailyDraws = []Draw{}
-var finalDraws = []Draw{}

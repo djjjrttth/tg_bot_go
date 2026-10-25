@@ -7,11 +7,12 @@ import (
 	//"slices"
 	"time"
 	"errors"
+	"strings"
 	"gorm.io/gorm"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
+func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery, adminID int64) {
 	callback := tgbotapi.NewCallback(query.ID, "")
 	if _, err := bot.Request(callback); err != nil {
 		log.Panic(err)
@@ -41,16 +42,28 @@ func handleCallback(bot *tgbotapi.BotAPI, query *tgbotapi.CallbackQuery) {
 	case "getPrize":
 		handleGetPrize(bot, chatID, userID)
 	case "runFinalDraw":
+		
 		runFinalDraw(bot, company)
+		
 	case "previewDailyDraw":
+		
 		previewDailyDraw(bot, userID, company)
+		
 	case "confirmDailyDraw":
-		confirmAndSendDailyDraw(bot, userID, company)
+			confirmAndSendDailyDraw(bot, userID)
+		
 	case "previewFinalDraw":
 		previewFinalDraw(bot, userID, company)
+		
 		// TODO: Добавить проверку user.ID == AdminID
 	case "confirmFinalDraw":
+		
 		confirmAndSendFinalDraw(bot, userID)
+	case "consentYes":
+		handleConsentResponse(bot, chatID, userID, true)
+	case "consentNo":
+		handleConsentResponse(bot, chatID, userID, false)
+		
 	}
 }
 
@@ -264,12 +277,157 @@ func handleGetRules(bot *tgbotapi.BotAPI, chatID int64) {
 }
 
 func handleGetPrize(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
-	getFirstName(bot, chatID, userID)
-	// /getLastName(bot, chatID, user.ID)
-	// getConsent(bot, chatID, user.ID)/
+	var u User
+	if err := DB.First(&u, "tg_id = ?", userID).Error; err != nil {
+		sendMsg(bot, chatID, "Ошибка: пользователь не найден в базе данных.")
+		return
+	}
+
+	// 🛡 БАРЬЕР 1: Проверка на дисквалификацию (таймаут)
+	if u.State == "disqualified" {
+		sendMsg(bot, chatID, "К сожалению, срок получения приза истек, и он был передан резервному победителю. 🥺")
+		return
+	}
+
+	// 🛡 БАРЬЕР 2: Проверка, что приз уже успешно получен и обработан
+	if u.IsPrizeClaimed || u.State == "completed" {
+		sendMsg(bot, chatID, "Вы уже успешно завершили процесс получения приза. Ожидайте связи с вами! 🎁")
+		return
+	}
+
+	// 🛡 БАРЬЕР 3: Защита от обнуления данных, если пользователь уже начал ввод
+	// Если пользователь находится в процессе ввода (например, уже ввел имя),
+	// мы не сбрасываем его данные, а просто напоминаем, что от него требуется.
+	if u.State == "awaiting_last_name" {
+		msg := fmt.Sprintf("✅ Вы ввели имя: *%s*\n\n✍️ Теперь *введите вашу фамилию*:", u.WinnerCreds.FirstName)
+		sendMsgMarkdown(bot, chatID, msg)
+		return
+	}
+	if u.State == "awaiting_consent" {
+		msg := "📜 Для дальнейшей обработки необходимо предоставить согласие на передачу данных партнеру.\n\n*Для подтверждения нажмите кнопку ниже:*"
+		sendMsgKeyboardMarkdown(bot, chatID, msg, consentYesButton, consentNoButton)
+		return
+	}
+
+	// 🚀 Инициализация флоу (только если пользователь нажал кнопку ВПЕРВЫЕ)
+	if u.WinnerCreds == nil {
+		u.WinnerCreds = &WinnerCreds{}
+	}
+	
+	u.State = "awaiting_first_name"
+	
+	if err := DB.Save(&u).Error; err != nil {
+		log.Printf("Ошибка сохранения состояния пользователя: %v", err)
+		sendMsg(bot, chatID, "Произошла техническая ошибка. Попробуйте позже.")
+		return
+	}
+
+	text := "Для получения приза необходимо прислать ваше имя, фамилию и согласие на передачу данных партнеру.\n\n✍️ *Введите ваше имя:*"
+	sendMsgMarkdown(bot, chatID, text)
 }
 
-func getFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
+/*func handleGetPrize(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
+	var u User
+	if err := DB.First(&u, "tg_id = ?", userID).Error; err != nil {
+		sendMsg(bot, chatID, "Ошибка: пользователь не найден в базе данных.")
+		return
+	}
+
+	// Инициализируем структуру и задаем первый шаг
+	u.WinnerCreds = &WinnerCreds{}
+	u.State = "awaiting_first_name"
+	
+	if err := DB.Save(&u).Error; err != nil {
+		log.Printf("Ошибка сохранения состояния пользователя: %v", err)
+		return
+	}
+
+	text := "Для получения приза необходимо прислать ваше имя, фамилию и согласие на передачу данных партнеру.\n\n✍️ *Введите ваше имя:*"
+	sendMsgMarkdown(bot, chatID, text)
+}*/
+
+func handleInputCreds(bot *tgbotapi.BotAPI, chatID int64, userID int64, text string) {
+	var u User
+	if err := DB.First(&u, "tg_id = ?", userID).Error; err != nil {
+		return
+	}
+
+	// Убираем лишние пробелы по краям
+	text = strings.TrimSpace(text)
+	if text == "" {
+		sendMsg(bot, chatID, "Пожалуйста, введите корректное значение, не оставляйте поле пустым.")
+		return
+	}
+
+	switch u.State {
+	case "awaiting_first_name":
+		u.WinnerCreds.FirstName = text
+		u.State = "awaiting_last_name"
+		DB.Save(&u)
+		
+		msg := fmt.Sprintf("✅ Вы ввели имя: *%s*\n\n✍️ Теперь *введите вашу фамилию*:", text)
+		sendMsgMarkdown(bot, chatID, msg)
+
+	case "awaiting_last_name":
+		u.WinnerCreds.LastName = text
+		u.State = "awaiting_consent"
+		DB.Save(&u)
+		
+		msg := fmt.Sprintf("✅ Вы ввели фамилию: *%s*\n\n📜 Для дальнейшей обработки необходимо предоставить согласие на передачу данных партнеру.\n\n*Для подтверждения нажмите кнопку ниже:*", text)
+		sendMsgKeyboardMarkdown(bot, chatID, msg, consentYesButton, consentNoButton)
+
+	case "awaiting_consent":
+		sendMsg(bot, chatID, "Пожалуйста, нажмите одну из кнопок согласия ниже, чтобы продолжить.")
+		
+	case "completed":
+		sendMsg(bot, chatID, "Вы уже успешно завершили процесс получения приза. Ожидайте связи с вами!")
+
+	default:
+		// Если состояние неизвестно, сбрасываем его
+		u.State = ""
+		DB.Save(&u)
+	}
+}
+
+func handleConsentResponse(bot *tgbotapi.BotAPI, chatID int64, userID int64, accepted bool) {
+	var u User
+	if err := DB.First(&u, "tg_id = ?", userID).Error; err != nil {
+		return
+	}
+
+	if u.State != "awaiting_consent" {
+		sendMsg(bot, chatID, "Этот шаг уже пройден или неактуален.")
+		return
+	}
+
+	if !accepted {
+		u.State = "" // Сбрасываем состояние
+		u.WinnerCreds.Consent = boolPtr(false)
+		DB.Save(&u)
+		sendMsg(bot, chatID, "Вы отказались от передачи данных. К сожалению, мы не можем передать вам приз. 🥺")
+		return
+	}
+
+	// Пользователь согласился
+	consentTrue := true
+	u.WinnerCreds.Consent = &consentTrue
+	u.IsPrizeClaimed = true
+	u.State = "completed" // Завершаем процесс
+	
+	if err := DB.Save(&u).Error; err != nil {
+		log.Printf("Ошибка сохранения данных победителя: %v", err)
+		sendMsg(bot, chatID, "Произошла техническая ошибка при сохранении данных.")
+		return
+	}
+
+	log.Printf("Пользователь %d успешно подтвердил получение приза", userID)
+	sendMsg(bot, chatID, "✅ Ваши данные приняты! Партнер свяжется с вами для передачи приза в ближайшее время. 🎁")
+}
+
+// Вспомогательная функция для получения указателя на bool
+
+
+/*func getFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
 	u := users[userID]
 	if u == nil {
 		return
@@ -280,8 +438,6 @@ func getFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
 }
 
 func inputFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64, firstName string) {
-	stateMutex.Lock()
-	defer stateMutex.Unlock()
 	
 	u := users[userID]
 	if u == nil || u.WinnerCreds == nil {
@@ -294,8 +450,6 @@ func inputFirstName(bot *tgbotapi.BotAPI, chatID int64, userID int64, firstName 
 }
 
 func inputLastName(bot *tgbotapi.BotAPI, chatID int64, userID int64, lastName string) {
-	stateMutex.Lock()
-	defer stateMutex.Unlock()
 	
 	u := users[userID]
 	if u == nil || u.WinnerCreds == nil {
@@ -310,8 +464,6 @@ func inputLastName(bot *tgbotapi.BotAPI, chatID int64, userID int64, lastName st
 }
 
 func inputConsent(bot *tgbotapi.BotAPI, chatID int64, userID int64) {
-	stateMutex.Lock()
-	defer stateMutex.Unlock()
 	
 	u := users[userID]
 	if u != nil {
@@ -334,4 +486,4 @@ func handleInputCreds(bot *tgbotapi.BotAPI, chatID int64, userID int64, text str
 	} else {
 		inputConsent(bot, chatID, userID)
 	}
-}
+}*/

@@ -16,6 +16,8 @@ type User struct {
 	PrizeNotifiedAt time.Time 
 	IsPrizeClaimed bool
 	LastActiveDay string `gorm:"type:varchar(10)"` 
+	State string `gorm:"type:varchar(32);default:''"`
+	JoinedAt time.Time `gorm:"autoCreateTime"`
 }
 
 type Promo struct {
@@ -56,7 +58,7 @@ type Partner struct {
 type Draw struct {
 	ID uint `gorm:"primaryKey"` 
 	Timestamp time.Time
-
+	PartnerID *uint
 	Participants []*Participant `gorm:"serializer:json;type:jsonb"` 
 	Winners []int64 `gorm:"serializer:json;type:jsonb"` 
 	ReserveWinners []int64 `gorm:"serializer:json;type:jsonb"` 
@@ -80,4 +82,21 @@ type Subscription struct {
 	TgID      int64     `gorm:"uniqueIndex:uq_subscription"`
 	PartnerID uint      `gorm:"uniqueIndex:uq_subscription"`
 	CreatedAt time.Time
+}
+
+
+type DailyStat struct {
+	Day   string
+	Count int64
+}
+
+type PromoRemaining struct {
+	PartnerID uint
+	Count     int64
+}
+
+type PartStat struct {
+	Day       string
+	PartnerID uint
+	Count     int64
 }

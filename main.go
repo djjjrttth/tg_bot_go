@@ -8,18 +8,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-/*func createUser(newUser *tgbotapi.User) {
-	users[newUser.ID] = &User{
-		TgID:       newUser.ID,
-		Username:   newUser.UserName,
-		Lastname:   newUser.LastName,
-		Promocode:  nil, 
-		Chances:    0, 
-		Registered: false,
-		Active:     false,
-	} 
-}*/
-
 func init() {
 	if err := godotenv.Load(); err != nil {
 		log.Print("File .env not found")
@@ -69,19 +57,32 @@ func main() {
 					if _, err := bot.Send(msg); err != nil {
 						log.Panic(err)
 					}
-					// TODO: добавить приветственный баннер
-					/*createUser(newUser)
-					
-					text := "Добро пожаловать в Бот розыгрышей!"
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
-					msg.ReplyMarkup = buttons
-					if _, err := bot.Send(msg); err != nil {
-						log.Panic(err)
-					}*/
+
+				case "statistics":
+					if newUser.ID == adminID {
+        				handleStats(bot, update.Message.Chat.ID)
+					} else {
+						sendMsg(bot, update.Message.Chat.ID, "Только администраторы могут просматривать статистику")
+					}
+				
+				case "export":
+					if newUser.ID == adminID {
+        				handleExport(bot, update.Message.Chat.ID)
+					} else {
+						sendMsg(bot, update.Message.Chat.ID, "Только администраторы могут выгружать статистику")
+					}
+				case "final":
+					if newUser.ID == adminID {
+        				startFinalDraw(bot, adminID)
+					} else {
+						sendMsg(bot, update.Message.Chat.ID, "Только администраторы могут проводить финальные розыгрыши")
+					}
 				}
+			
+
 			} 
 		} else if update.CallbackQuery != nil {
-			handleCallback(bot, update.CallbackQuery)
+			handleCallback(bot, update.CallbackQuery, adminID)
 			continue
 		} else if update.Message == nil {
 			continue

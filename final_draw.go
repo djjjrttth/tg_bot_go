@@ -3,14 +3,15 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
-	"slices"
 	"math/rand/v2"
+	"slices"
+	"time"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 const (
-	WinnersCnt = 10
+	WinnersCnt      = 10
 	finalWinnersCnt = 5
 )
 
@@ -35,42 +36,70 @@ func chooseWinners(p Partner, uniqueParticipantsCnt int32, participantIDs []int6
 }
 
 func getWinnersID(p Partner) ([]int64, []int64) {
+	// 1. Получаем всех уникальных участников из БД
+	var uniqueTgIDs []int64
+	err := DB.Model(&Participant{}).Distinct("tg_id").Pluck("tg_id", &uniqueTgIDs).Error
+	if err != nil {
+		log.Printf("Ошибка получения уникальных участников: %v", err)
+		return nil, nil
+	}
+
 	var participantsWithChancesIDs []int64
 	
-	for _, p := range participants {
-		u := users[p.TgID]
-		if u != nil {
-			for range u.Chances {
-				participantsWithChancesIDs = append(participantsWithChancesIDs, p.TgID)
+	// 2. Для каждого уникального участника проверяем его шансы в БД
+	for _, tgID := range uniqueTgIDs {
+		var u User
+		if err := DB.First(&u, "tg_id = ?", tgID).Error; err == nil {
+			for i := 0; i < int(u.Chances); i++ {
+				participantsWithChancesIDs = append(participantsWithChancesIDs, tgID)
 			}
 		}
 	}
 	
-	fmt.Println(participantsWithChancesIDs)
-	
-	var finalWinners []int64
-	var reserveWinners []int64
-	uniqueParticipantsCnt := int32(len(participants))
-	
+	uniqueParticipantsCnt := int32(len(uniqueTgIDs))
 	winners := chooseWinners(p, uniqueParticipantsCnt, participantsWithChancesIDs)
 	if winners == nil {
 		return nil, nil
 	}
 	
-	finalWinners = winners[:finalWinnersCnt]
-	reserveWinners = winners[finalWinnersCnt:]
+	finalWinners := winners[:finalWinnersCnt]
+	reserveWinners := winners[finalWinnersCnt:]
 	
-	fmt.Printf("Главные победители: %v\n", finalWinners)
-	fmt.Printf("Резервные победители: %v\n\n", reserveWinners)
+	log.Printf("Главные победители: %v", finalWinners)
+	log.Printf("Резервные победители: %v", reserveWinners)
 	
 	return finalWinners, reserveWinners
 }
 
 func runFinalDraw(bot *tgbotapi.BotAPI, p Partner) {
-	finalWinnerIDs, _ := getWinnersID(p)
-	if finalWinnerIDs != nil {
-		sendMsgToFinalWinners(bot, finalWinnerIDs)
+	finalWinnerIDs, reserveWinnerIDs := getWinnersID(p)
+	if finalWinnerIDs == nil {
+		return
 	}
+
+	// Сохраняем в БД
+	newDraw := Draw{
+		Timestamp:      time.Now(),
+		Winners:        finalWinnerIDs,
+		ReserveWinners: reserveWinnerIDs,
+		IsFinal:        true,
+	}
+
+	if err := DB.Create(&newDraw).Error; err != nil {
+		log.Printf("Ошибка сохранения финального розыгрыша: %v", err)
+		return
+	}
+
+	// Обновляем статусы главных победителей
+	now := time.Now()
+	for _, id := range finalWinnerIDs {
+		DB.Model(&User{}).Where("tg_id = ?", id).Updates(map[string]interface{}{
+			"prize_notified_at": now,
+			"is_prize_claimed":  false,
+		})
+	}
+
+	sendMsgToFinalWinners(bot, finalWinnerIDs)
 }
 
 func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64) {
@@ -79,24 +108,14 @@ func sendMsgToFinalWinners(bot *tgbotapi.BotAPI, finalWinnerIDs []int64) {
 		"Чтобы подтвердить получение приза, нажми кнопку ниже и оставь необходимые контактные данные.")
 		
 	for _, id := range finalWinnerIDs {
-		if u, ok := users[id]; ok {
-			u.PrizeNotifiedAt = time.Now()
-			u.IsPrizeClaimed = false
-		}
 		sendMsgKeyboard(bot, id, text, getPrizeButton)
 	}
 }
 
 func previewFinalDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner) {
 	mainWinners, reserveWinners := getWinnersID(p)
-	fmt.Println(mainWinners)
-	
-	if mainWinners == nil {
-		log.Printf("Недостаточно главных участников для проведения розыгрыша")
-		return
-	}
-	if reserveWinners == nil {
-		log.Printf("Недостаточно резервных участников для проведения розыгрыша")
+	if mainWinners == nil || reserveWinners == nil {
+		sendMsg(bot, adminID, "Недостаточно участников для проведения финального розыгрыша.")
 		return
 	}
 	
@@ -107,21 +126,23 @@ func previewFinalDraw(bot *tgbotapi.BotAPI, adminID int64, p Partner) {
 	}
 	
 	var mainText, reserveText string
+	
+	// Получаем имена из БД
 	for _, id := range mainWinners {
-		u := users[id]
-		name := u.Username
-		if name == "" {
-			name = fmt.Sprintf("ID: %d", id)
+		var u User
+		if err := DB.First(&u, "tg_id = ?", id).Error; err == nil && u.Username != "" {
+			mainText += fmt.Sprintf("• @%s\n", u.Username)
+		} else {
+			mainText += fmt.Sprintf("• ID: %d\n", id)
 		}
-		mainText += fmt.Sprintf("• @%s\n", name)
 	}
 	for _, id := range reserveWinners {
-		u := users[id]
-		name := u.Username
-		if name == "" {
-			name = fmt.Sprintf("ID: %d", id)
+		var u User
+		if err := DB.First(&u, "tg_id = ?", id).Error; err == nil && u.Username != "" {
+			reserveText += fmt.Sprintf("• @%s\n", u.Username)
+		} else {
+			reserveText += fmt.Sprintf("• ID: %d\n", id)
 		}
-		reserveText += fmt.Sprintf("• @%s\n", name)
 	}
 	
 	text := fmt.Sprintf("🏆 *ПРЕДВАРИТЕЛЬНЫЕ ИТОГИ ФИНАЛЬНОГО РОЗЫГРЫША*\n\n"+
@@ -141,6 +162,28 @@ func confirmAndSendFinalDraw(bot *tgbotapi.BotAPI, adminID int64) {
 	}
 	delete(pendingFinalDraws, adminID)
 	
+	// Сохраняем в БД
+	newDraw := Draw{
+		Timestamp:      time.Now(),
+		Winners:        data.WinnerIDs,
+		ReserveWinners: data.ReserveWinners,
+		IsFinal:        true,
+	}
+
+	if err := DB.Create(&newDraw).Error; err != nil {
+		log.Printf("Ошибка сохранения подтвержденного финального розыгрыша: %v", err)
+		return
+	}
+
+	// Обновляем статусы
+	now := time.Now()
+	for _, id := range data.WinnerIDs {
+		DB.Model(&User{}).Where("tg_id = ?", id).Updates(map[string]interface{}{
+			"prize_notified_at": now,
+			"is_prize_claimed":  false,
+		})
+	}
+	
 	sendMsgToFinalWinners(bot, data.WinnerIDs)
 	
 	reserveText := "Ты в резерве финального розыгрыша! 🎟\nЕсли один из главных победителей не заберет свой приз в течение 24 часов, он перейдет к тебе. Ожидай обновления."
@@ -155,4 +198,6 @@ func confirmAndSendFinalDraw(bot *tgbotapi.BotAPI, adminID int64) {
 
 func startFinalDraw(bot *tgbotapi.BotAPI, adminID int64) {
 	// TODO: реализовать проведение финальных розыгрышей по расписанию
+
+	fmt.Println("Начинаем финальный розыгрыш")
 }

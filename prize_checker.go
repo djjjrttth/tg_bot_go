@@ -3,17 +3,13 @@ package main
 import (
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-
-const PrizeClaimTimeout = 1 * time.Minute
-const CheckerInterval = 30 * time.Second
-
-var stateMutex sync.Mutex
+const PrizeClaimTimeout = 3 * time.Minute 
+const CheckerInterval = 5 * time.Minute
 
 func startPrizeChecker(bot *tgbotapi.BotAPI) {
 	go func() {
@@ -28,32 +24,36 @@ func startPrizeChecker(bot *tgbotapi.BotAPI) {
 }
 
 func checkExpiredPrizes(bot *tgbotapi.BotAPI) {
-	stateMutex.Lock()
-	defer stateMutex.Unlock()
-
-	for i := range dailyDraws {
-		processDraw(&dailyDraws[i], bot, false)
+	var draws []Draw
+	if err := DB.Find(&draws).Error; err != nil {
+		log.Printf("Ошибка получения розыгрышей из БД: %v", err)
+		return
 	}
-	for i := range finalDraws {
-		processDraw(&finalDraws[i], bot, true)
-	}
-}
 
-func processDraw(draw *Draw, bot *tgbotapi.BotAPI, isFinal bool) {
-	for i, winnerID := range draw.Winners {
-		u := users[winnerID]
-		if u == nil {
-			continue
-		}
+	for _, draw := range draws {
+		for i, winnerID := range draw.Winners {
+			var u User
+			if err := DB.First(&u, "tg_id = ?", winnerID).Error; err != nil {
+				continue
+			}
 
-		if u.IsPrizeClaimed || u.PrizeNotifiedAt.IsZero() {
-			continue
-		}
+			if u.IsPrizeClaimed || u.PrizeNotifiedAt.IsZero() || u.State == "disqualified" {
+				continue
+			}
 
-		if now := time.Now(); now.Sub(u.PrizeNotifiedAt) > PrizeClaimTimeout {
-			log.Printf("Победитель %d не забрал приз в срок (%v). Передаем резервному.", winnerID, PrizeClaimTimeout)
-			sendMsg(bot, winnerID, "К сожалению, вы не подтвердили получение приза в установленный срок. Приз передан резервному победителю.")
-			transferToReserve(draw, i, bot, isFinal)
+			if time.Since(u.PrizeNotifiedAt) > PrizeClaimTimeout {
+				log.Printf("Победитель %d не забрал приз в срок. Передаем резервному.", winnerID)
+				
+				DB.Model(&u).Updates(map[string]interface{}{
+					"is_prize_claimed": true,
+					"state": "disqualified",
+				})
+
+				sendMsg(bot, winnerID, "К сожалению, вы не подтвердили получение приза в установленный срок. Приз передан резервному победителю.")
+				
+
+				transferToReserve(&draw, i, bot, draw.IsFinal)
+			}
 		}
 	}
 }
@@ -67,11 +67,24 @@ func transferToReserve(draw *Draw, failedWinnerIndex int, bot *tgbotapi.BotAPI, 
 	nextReserveID := draw.ReserveWinners[0]
 	draw.ReserveWinners = draw.ReserveWinners[1:] 
 	
-	u := users[nextReserveID]
-	if u == nil {
-		log.Printf("Ошибка: резервный победитель ID %d не найден в базе пользователей.", nextReserveID)
+	draw.Winners[failedWinnerIndex] = nextReserveID
+
+	if err := DB.Save(draw).Error; err != nil {
+		log.Printf("Ошибка обновления розыгрыша в БД при передаче приза: %v", err)
+		return
+	}
+
+	var u User
+	if err := DB.First(&u, "tg_id = ?", nextReserveID).Error; err != nil {
+		log.Printf("Ошибка: резервный победитель ID %d не найден в БД.", nextReserveID)
 		return 
 	}
+
+	now := time.Now()
+	DB.Model(&u).Updates(map[string]interface{}{
+		"prize_notified_at": now,
+		"is_prize_claimed":  false,
+	})
 
 	var text string
 	if isFinal {
@@ -79,17 +92,27 @@ func transferToReserve(draw *Draw, failedWinnerIndex int, bot *tgbotapi.BotAPI, 
 			"Ты выиграл билет на Канье Уэста!\n" +
 			"Чтобы подтвердить получение приза, нажми кнопку ниже."
 	} else {
-		text = fmt.Sprintf("Поздравляем! 🔥 Вы стали победителем дня, так как предыдущий участник не успел подтвердить приз.\n" +
-			"Ты выиграл %s от %s.\n" +
+	
+		var partnerName, prizeName, instruction string
+		if draw.PartnerID != nil {
+			var p Partner
+			if err := DB.First(&p, "id = ?", *draw.PartnerID).Error; err == nil {
+				partnerName = p.Name
+				prizeName = p.PrizeName
+				instruction = p.PrizeInstruction
+			} else {
+				partnerName = "Партнера"
+				prizeName = "приз"
+				instruction = "свяжитесь с поддержкой"
+			}
+		}
+		
+		text = fmt.Sprintf("Поздравляем! 🔥 Вы стали победителем дня, так как предыдущий участник не успел подтвердить приз.\n"+
+			"Ты выиграл %s от %s.\n"+
 			"Чтобы получить приз, %s.",
-			company.PrizeName, company.Name, company.PrizeInstruction)
+			prizeName, partnerName, instruction)
 	}
 
-	u.PrizeNotifiedAt = time.Now()
-	u.IsPrizeClaimed = false
-	
-	draw.Winners[failedWinnerIndex] = nextReserveID
-	
 	sendMsgKeyboard(bot, nextReserveID, text, getPrizeButton)
 	log.Printf("Приз передан резервному победителю ID: %d", nextReserveID)
 }
