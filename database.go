@@ -11,6 +11,7 @@ import (
 
 var DB *gorm.DB
 
+// InitDB инициализирует базу данных
 func InitDB() {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {

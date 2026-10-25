@@ -7,13 +7,15 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+
+// sendMsg отправляет пользователю сообщение  
 func sendMsg(bot *tgbotapi.BotAPI, chatID int64, text string){
 	msg := tgbotapi.NewMessage(chatID, text)
 	if _, err := bot.Send(msg); err != nil {
 		log.Printf("Ошибка отправки сообщения: %v", err)
 	}
 }
-
+//sendMsgKeyboard отправляет пользователю сообщение с кнопками
 func sendMsgKeyboard(bot *tgbotapi.BotAPI, chatID int64, text string, button ...tgbotapi.InlineKeyboardButton) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ReplyMarkup = convertToMarkup(button)
@@ -23,21 +25,7 @@ func sendMsgKeyboard(bot *tgbotapi.BotAPI, chatID int64, text string, button ...
 	}
 }
 
-
-/*func findParticipantByID(id int64) (int, bool){
-	var n int = len(participants)
-
-	for i := range n {
-		p := participants[i]
-		if p.TgID == id {
-			return i, true
-		}
-	}
-
-	return -1, false
-}*/
-
-
+// isSubscribed проверяет факт подписки пользователя на партнера
 func isSubscribed(userID int64, partnerID uint) bool {
 	var sub Subscription
 	err := DB.Where("tg_id = ? AND partner_id = ?", userID, partnerID).First(&sub).Error
@@ -48,7 +36,7 @@ func isSubscribed(userID int64, partnerID uint) bool {
 	return false
 }
 
-
+// markSubscribed создает запись о факте подписки пользователя на партнера
 func markSubscribed(userID int64, partnerID uint) error {
 
 	var existing Subscription
@@ -62,31 +50,12 @@ func markSubscribed(userID int64, partnerID uint) error {
 	}
 	return DB.Create(&sub).Error
 }
-
+// boolPtr возвращает указатель на переменную типа bool
 func boolPtr(b bool) *bool {
 	return &b
 }
 
-
-func sendMsgMarkdown(bot *tgbotapi.BotAPI, chatID int64, text string) {
-	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = "Markdown"
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Ошибка отправки сообщения: %v", err)
-	}
-}
-
-func sendMsgKeyboardMarkdown(bot *tgbotapi.BotAPI, chatID int64, text string, buttons ...tgbotapi.InlineKeyboardButton) {
-	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = "Markdown"
-	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(buttons...),
-	)
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Ошибка отправки сообщения с клавиатурой: %v", err)
-	}
-}
-
+// writeUserRow создает строку с данными для выгрузки розыгрыша
 func writeUserRow(writer *csv.Writer, drawID uint, drawType, drawDate, partnerName, prizeName, role string, userID int64) {
 	var u User
 	status := "Неизвестно"
@@ -136,4 +105,21 @@ func writeUserRow(writer *csv.Writer, drawID uint, drawType, drawDate, partnerNa
 	if err := writer.Write(row); err != nil {
 		log.Printf("Ошибка записи строки CSV для пользователя %d: %v", userID, err)
 	}
+}
+
+// convertToRow делает ряд кнопок
+func convertToRow(button tgbotapi.InlineKeyboardButton) []tgbotapi.InlineKeyboardButton {
+	return tgbotapi.NewInlineKeyboardRow(button)
+}
+
+// convertToMarkup создает меню кнопок
+func convertToMarkup(buttons []tgbotapi.InlineKeyboardButton) tgbotapi.InlineKeyboardMarkup {
+	k := [][]tgbotapi.InlineKeyboardButton{}
+
+	for _, b := range buttons {
+		k = append(k, convertToRow(b))
+	}
+
+	return tgbotapi.NewInlineKeyboardMarkup(k...)
+
 }

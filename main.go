@@ -8,6 +8,8 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+
+// Инициализация переменных окружения
 func init() {
 	if err := godotenv.Load(); err != nil {
 		log.Print("File .env not found")
@@ -20,6 +22,9 @@ func main() {
 	adminID_, _ := strconv.Atoi(adminIDstr)
 	var adminID int64 = int64(adminID_)
 
+	
+	// Инициализация базы данных
+
 	InitDB() 
 
 	bot, err := tgbotapi.NewBotAPI(api_token)
@@ -28,7 +33,10 @@ func main() {
 	}
 	bot.Debug = false
 
+	// Запуск планировщика ежедневных розыгрышей
 	startDailyDraw(bot, adminID)
+
+	// Запуск проверки подтверждения призов
 	startPrizeChecker(bot)
 
 	updateConfig := tgbotapi.NewUpdate(0) 
@@ -43,8 +51,10 @@ func main() {
 				handleInputCreds(bot, update.Message.Chat.ID, newUser.ID, update.Message.Text)
 			} else if update.Message.IsCommand() {
 				switch update.Message.Command() {
-				case "start":
 
+				// создание нового пользователя и показ кнопок
+				case "start":
+					
 					var u User
 					DB.FirstOrCreate(&u, User{
 						TgID:     newUser.ID,
@@ -58,22 +68,26 @@ func main() {
 						log.Panic(err)
 					}
 
+
+				// Получение статистики, доступно только для администраторов
 				case "statistics":
 					if newUser.ID == adminID {
         				handleStats(bot, update.Message.Chat.ID)
 					} else {
 						sendMsg(bot, update.Message.Chat.ID, "Только администраторы могут просматривать статистику")
 					}
-				
+					
+				// Экспорт статистики, доступно только для администраторов
 				case "export":
 					if newUser.ID == adminID {
         				handleExport(bot, update.Message.Chat.ID)
 					} else {
 						sendMsg(bot, update.Message.Chat.ID, "Только администраторы могут выгружать статистику")
 					}
+				// Проведение финального розыгрыша, доступно только для администраторов
 				case "final":
 					if newUser.ID == adminID {
-        				startFinalDraw(bot, adminID)
+        				previewFinalDraw(bot, adminID, company)
 					} else {
 						sendMsg(bot, update.Message.Chat.ID, "Только администраторы могут проводить финальные розыгрыши")
 					}

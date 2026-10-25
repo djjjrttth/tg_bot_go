@@ -3,19 +3,34 @@ services:
     image: postgres:16-alpine
     container_name: contest_db
     environment:
-      POSTGRES_USER: bot_user
-      POSTGRES_PASSWORD: bot_password
-      POSTGRES_DB: contest_bot
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bot_user -d contest_bot"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
     restart: unless-stopped
 
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contest_bot
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./banner.jpg:/app/banner.jpg:ro
+    restart: unless-stopped
+
 volumes:
   pgdata:
+    driver: local

@@ -8,9 +8,14 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-const PrizeClaimTimeout = 3 * time.Minute 
-const CheckerInterval = 5 * time.Minute
+// Интервал, в течение которого можно подтвердить получение приза
+const PrizeClaimTimeout = 24 * time.Hour
 
+// Как часто происходит проверка подтверждения получения приза
+const CheckerInterval = 1 * time.Hour
+
+
+// startPrizeChecker запускает проверку
 func startPrizeChecker(bot *tgbotapi.BotAPI) {
 	go func() {
 		ticker := time.NewTicker(CheckerInterval)
@@ -23,6 +28,8 @@ func startPrizeChecker(bot *tgbotapi.BotAPI) {
 	}()
 }
 
+
+// checkExpiredPrizes проверяет подтверждение получения приза в установленный срок
 func checkExpiredPrizes(bot *tgbotapi.BotAPI) {
 	var draws []Draw
 	if err := DB.Find(&draws).Error; err != nil {
@@ -58,6 +65,8 @@ func checkExpiredPrizes(bot *tgbotapi.BotAPI) {
 	}
 }
 
+
+// transferToReserve передает приз резервному победителю
 func transferToReserve(draw *Draw, failedWinnerIndex int, bot *tgbotapi.BotAPI, isFinal bool) {
 	if len(draw.ReserveWinners) == 0 {
 		log.Printf("Резервные победители для розыгрыша от %s закончились", draw.Timestamp.Format("2006-01-02"))

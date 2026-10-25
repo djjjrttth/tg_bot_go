@@ -10,6 +10,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+// handleExport формирует выгрузку со статистикой
 func handleExport(bot *tgbotapi.BotAPI, chatID int64) {
 
 	var draws []Draw

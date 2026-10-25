@@ -4,20 +4,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func convertToRow(button tgbotapi.InlineKeyboardButton) []tgbotapi.InlineKeyboardButton {
-	return tgbotapi.NewInlineKeyboardRow(button)
-}
-
-func convertToMarkup(buttons []tgbotapi.InlineKeyboardButton) tgbotapi.InlineKeyboardMarkup {
-	k := [][]tgbotapi.InlineKeyboardButton{}
-
-	for _, b := range buttons {
-		k = append(k, convertToRow(b))
-	}
-
-	return tgbotapi.NewInlineKeyboardMarkup(k...)
-
-}
 
 var getPromoButton = tgbotapi.NewInlineKeyboardButtonData("Получить промокод", "getPromo")
 var takePartButton = tgbotapi.NewInlineKeyboardButtonData("Участвовать в розыгрыше", "takePart")
@@ -45,26 +31,6 @@ var buttons = tgbotapi.NewInlineKeyboardMarkup(
 	
 	convertToRow(getRulesButton),
 
-
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("📊 Предпросмотр ежедневного розыгрыша", "previewDailyDraw"),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("🏆 Предпросмотр финального розыгрыша", "previewFinalDraw"),
-	),
-
-	/*tgbotapi.NewInlineKeyboardRow(
-	tgbotapi.NewInlineKeyboardButtonData("GetDailyWinners", "getDailyWinners"),
-),
-
-tgbotapi.NewInlineKeyboardRow(
-	tgbotapi.NewInlineKeyboardButtonData("runDailyDraw", "runDailyDraw"),
-),
-tgbotapi.NewInlineKeyboardRow(
-	tgbotapi.NewInlineKeyboardButtonData("runFinalDraw", "runFinalDraw"),
-),*/
-	
 )
 
 
-/**/
